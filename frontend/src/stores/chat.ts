@@ -112,13 +112,14 @@ export const useChatStore = defineStore('chat', {
       this.abortController = new AbortController()
 
       this.messages.push({ id: genId(), role: 'user', content })
-      const assistant: UIMessage = {
+      this.messages.push({
         id: genId(),
         role: 'assistant',
         content: '',
         streaming: true,
-      }
-      this.messages.push(assistant)
+      })
+      // 取数组里的响应式引用来更新；直接改 push 进去的原始对象不会触发渲染
+      const assistant = this.messages[this.messages.length - 1]
 
       const isNew = !this.activeId
 
