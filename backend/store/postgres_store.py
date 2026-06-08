@@ -1,9 +1,11 @@
-"""PostgreSQL 会话历史存储实现。
+"""PostgreSQL 会话历史存储实现（统一到 ai_conversations 表）。
 
-把对话历史持久化到 hpu_db 的 chat_conversations 表（按 conversation_id）。
-- 表结构在首次使用时自动创建（幂等），不依赖外部建表脚本。
-- 不复用现有的 ai_conversations 表：后者要求 user_id NOT NULL 且外键关联 users，
-  不适合本接口的匿名 / 无登录会话。本表独立、自包含。
+设计变更（统一持久化）：
+- 原先独立的 chat_conversations 表已废弃，会话历史统一收敛到项目既有的
+  ai_conversations 表，按 session_id 维护（一会话一行，UPSERT 滑窗裁剪）。
+- 暂无用户态：所有会话归属到 seed_xiaoming.sql 插入的演示用户（小明 id=1）。
+- 同一行还可回写一次健康决策的产出（training_plan / meal_plan / agent_decisions /
+  safety_logs / recommendations / speech_report），实现"对话 + 报告"同源存档。
 
 阻塞式 psycopg2 调用通过 asyncio.to_thread 放到线程池执行，避免阻塞事件循环。
 """
@@ -12,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Dict, List
+from typing import Dict, List, Any
 
 from psycopg2.extras import Json
 
@@ -23,19 +25,17 @@ from .conversation_store import (
 )
 from .db import get_pool
 
+# 暂无用户态：统一归属到演示用户（与 intake.DEFAULT_USER_ID 保持一致）
+DEFAULT_USER_ID = 1
 
-_CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS chat_conversations (
-    conversation_id VARCHAR(64) PRIMARY KEY,
-    messages        JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
+# 保证 session_id 可作为 UPSERT 冲突键（幂等）
+_ENSURE_INDEX_SQL = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_conv_session ON ai_conversations(session_id)"
+)
 
 
 class PostgresConversationStore(ConversationStore):
-    """基于 PostgreSQL 的会话历史存储。
+    """基于 PostgreSQL ai_conversations 表的会话历史存储。
 
     Args:
         max_turns: 每个会话保留的最大轮数（1 轮 = user + assistant），超出裁剪最早记录。
@@ -68,11 +68,12 @@ class PostgresConversationStore(ConversationStore):
             if self._initialized:
                 return
 
-            def create(conn):
+            def ensure(conn):
                 with conn.cursor() as cur:
-                    cur.execute(_CREATE_TABLE_SQL)
+                    # ai_conversations 表由 hpu_db.sql 建好；此处仅补会话唯一索引
+                    cur.execute(_ENSURE_INDEX_SQL)
 
-            await asyncio.to_thread(self._run, create)
+            await asyncio.to_thread(self._run, ensure)
             self._initialized = True
 
     # --------------------- 接口实现 ---------------------
@@ -82,14 +83,13 @@ class PostgresConversationStore(ConversationStore):
         def query(conn):
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT messages FROM chat_conversations WHERE conversation_id = %s",
+                    "SELECT messages FROM ai_conversations WHERE session_id = %s",
                     (conversation_id,),
                 )
                 row = cur.fetchone()
                 return row[0] if row else []
 
         messages = await asyncio.to_thread(self._run, query)
-        # JSONB 列已是 list；兜底处理字符串情况
         if isinstance(messages, str):
             messages = json.loads(messages)
         return messages or []
@@ -105,27 +105,26 @@ class PostgresConversationStore(ConversationStore):
                 # 追加并用滑动窗口裁剪：拼接后只保留最后 limit 条
                 cur.execute(
                     """
-                    INSERT INTO chat_conversations (conversation_id, messages, updated_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (conversation_id) DO UPDATE SET
+                    INSERT INTO ai_conversations (user_id, session_id, messages)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (session_id) DO UPDATE SET
                         messages = (
                             SELECT to_jsonb(array_agg(m))
                             FROM (
                                 SELECT m
                                 FROM jsonb_array_elements(
-                                    chat_conversations.messages || EXCLUDED.messages
+                                    COALESCE(ai_conversations.messages, '[]'::jsonb) || EXCLUDED.messages
                                 ) WITH ORDINALITY AS t(m, ord)
                                 ORDER BY ord
                                 OFFSET GREATEST(
                                     jsonb_array_length(
-                                        chat_conversations.messages || EXCLUDED.messages
+                                        COALESCE(ai_conversations.messages, '[]'::jsonb) || EXCLUDED.messages
                                     ) - %s, 0
                                 )
                             ) sub
-                        ),
-                        updated_at = CURRENT_TIMESTAMP
+                        )
                     """,
-                    (conversation_id, Json(messages), limit),
+                    (DEFAULT_USER_ID, conversation_id, Json(messages), limit),
                 )
 
         await asyncio.to_thread(self._run, upsert)
@@ -136,7 +135,7 @@ class PostgresConversationStore(ConversationStore):
         def delete(conn):
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM chat_conversations WHERE conversation_id = %s",
+                    "DELETE FROM ai_conversations WHERE session_id = %s",
                     (conversation_id,),
                 )
 
@@ -147,32 +146,87 @@ class PostgresConversationStore(ConversationStore):
 
         def query(conn):
             with conn.cursor() as cur:
-                # 直接在 SQL 里取首条 user 消息作标题，避免回传全部 messages
                 cur.execute(
                     """
                     SELECT
-                        conversation_id,
+                        session_id,
                         COALESCE((
                             SELECT m ->> 'content'
                             FROM jsonb_array_elements(messages) AS m
                             WHERE m ->> 'role' = 'user'
                             LIMIT 1
                         ), '') AS title,
-                        EXTRACT(EPOCH FROM updated_at) AS updated_at
-                    FROM chat_conversations
-                    WHERE jsonb_array_length(messages) > 0
-                    ORDER BY updated_at DESC
+                        EXTRACT(EPOCH FROM created_at) AS ts
+                    FROM ai_conversations
+                    WHERE messages IS NOT NULL AND jsonb_array_length(messages) > 0
+                    ORDER BY created_at DESC
                     """
                 )
                 return cur.fetchall()
 
         rows = await asyncio.to_thread(self._run, query)
         result: List[ConversationSummary] = []
-        for cid, title, updated_at in rows:
+        for sid, title, ts in rows:
             clean = (title or "").strip().replace("\n", " ")[:30] or "新对话"
             result.append({
-                "conversation_id": cid,
+                "conversation_id": sid,
                 "title": clean,
-                "updated_at": float(updated_at or 0.0),
+                "updated_at": float(ts or 0.0),
             })
         return result
+
+
+# =============================================================================
+# 报告产出回写：把一次健康决策的结果存到同一 ai_conversations 行
+# =============================================================================
+def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) -> None:
+    training_plan = result.get("training_plan", {})
+    meal_plan = result.get("meal_plan", {})
+    safety = result.get("safety_result", {})
+    speech = (result.get("final_report", {}) or {}).get("vocal_narrative", "")
+    agent_decisions = {
+        "reasoning_chain": result.get("reasoning_chain", []),
+        "agent_outputs": result.get("agent_outputs", {}),
+        "derived_metrics": result.get("derived_metrics", {}),
+        "data_sources": result.get("data_sources", {}),
+    }
+    recommendations = {
+        "physio_assessment": result.get("physio_assessment", {}),
+        "final_report": result.get("final_report", {}),
+        "mode": result.get("mode"),
+        "fatigue_level": result.get("fatigue_level"),
+    }
+
+    pool = get_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(_ENSURE_INDEX_SQL)
+            cur.execute(
+                """
+                INSERT INTO ai_conversations
+                    (user_id, session_id, agent_decisions, safety_logs,
+                     recommendations, training_plan, meal_plan, speech_report)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (session_id) DO UPDATE SET
+                    agent_decisions = EXCLUDED.agent_decisions,
+                    safety_logs     = EXCLUDED.safety_logs,
+                    recommendations = EXCLUDED.recommendations,
+                    training_plan   = EXCLUDED.training_plan,
+                    meal_plan       = EXCLUDED.meal_plan,
+                    speech_report   = EXCLUDED.speech_report
+                """,
+                (user_id, session_id, Json(agent_decisions), Json(safety),
+                 Json(recommendations), Json(training_plan), Json(meal_plan), speech),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)
+
+
+async def save_assessment_artifacts(session_id: str, user_id: int, result: Dict[str, Any]) -> None:
+    """异步回写健康决策产出到 ai_conversations（同 session_id 行）。"""
+    await asyncio.to_thread(_save_artifacts_sync, session_id, user_id, result)
