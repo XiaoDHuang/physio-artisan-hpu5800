@@ -8,16 +8,7 @@ trigger:
   event:
     - custom
 
-clone:
-  disable: true
-
-steps:
-  - name: clone
-    image: alpine/git
-    commands:
-      - git clone ${DRONE_REMOTE_URL} .
-      - git checkout ${DRONE_COMMIT_SHA}
-      
+steps:  
   - name: build-and-push
     image: plugins/docker
     settings:
