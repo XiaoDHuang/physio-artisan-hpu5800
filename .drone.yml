@@ -9,15 +9,6 @@ trigger:
     - custom
 
 steps:  
-  - name: debug
-    image: alpine
-    environment:
-      TEST_USER:
-        from_secret: aliyun_registry_username
-
-    commands:
-      - echo "$TEST_USER"
-      - test -n "$TEST_USER"
   - name: build-and-push
     image: plugins/docker
     settings:
