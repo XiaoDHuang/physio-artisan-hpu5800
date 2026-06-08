@@ -1,7 +1,8 @@
+---
 kind: pipeline
 type: docker
-name: build-and-deploy
-    
+name: custom-build
+
 trigger:
   branch:
     - main
@@ -9,31 +10,38 @@ trigger:
     - custom
 
 steps:
-  - name: build-and-push
+  - name: build-backend
     image: plugins/docker
+
     settings:
-      repo: registry.cn-hangzhou.aliyuncs.com/sh-cloud/hpu
-      registry: registry.cn-hangzhou.aliyuncs.com
+      registry: registry.cn-shanghai.aliyuncs.com
+      repo: registry.cn-shanghai.aliyuncs.com/sh-cloud/hpu-backend
+      context: backend
+      dockerfile: backend/Dockerfile
+
       tags:
         - latest
-        - ${DRONE_COMMIT_SHA:0:8}
-      dockerfile: Dockerfile
-      context: ./
+        - ${DRONE_COMMIT_SHA}
+
       username:
         from_secret: aliyun_registry_username
       password:
         from_secret: aliyun_registry_password
 
-  - name: notify-jenkins
-    image: curlimages/curl:latest
-    environment:
-      JENKINS_TOKEN:
-        from_secret: jenkins_token
-      IMAGE_REPO: registry.cn-hangzhou.aliyuncs.com/sh-cloud/hpu
-    commands:
-      - >
-        SHORT_SHA=${DRONE_COMMIT_SHA:0:8} &&
-        curl -X POST https://gateway-api.shangyuanlabs.com/api/v1/jenkins/update-tag \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $JENKINS_TOKEN" \
-        -d "{\"service\":\"hpu\",\"image\":\"${IMAGE_REPO}:${SHORT_SHA}\"}"
+  - name: build-frontend
+    image: plugins/docker
+
+    settings:
+      registry: registry.cn-shanghai.aliyuncs.com
+      repo: registry.cn-shanghai.aliyuncs.com/sh-cloud/hpu-frontend
+      context: frontend
+      dockerfile: frontend/Dockerfile
+
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA}
+
+      username:
+        from_secret: aliyun_registry_username
+      password:
+        from_secret: aliyun_registry_password
