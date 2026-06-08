@@ -21,8 +21,8 @@ steps:
   - name: build-and-push
     image: plugins/docker
     settings:
-      repo: registry.cn-hangzhou.aliyuncs.com/sh-cloud/hpu
-      registry: registry.cn-hangzhou.aliyuncs.com
+      repo: registry.cn-shanghai.aliyuncs.com/sh-cloud/hpu
+      registry: registry.cn-shanghai.aliyuncs.com
       tags:
         - latest
         - ${DRONE_COMMIT_SHA:0:8}
