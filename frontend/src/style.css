@@ -1,0 +1,51 @@
+:root {
+  --c-primary: #3fbf8f;
+  --c-primary-hover: #34a87c;
+  --c-primary-soft: #e8f7f1;
+  --c-app-bg: #f3f8f6;
+  --c-sidebar-bg: #ffffff;
+  --c-panel-bg: #f7faf9;
+  --c-card-bg: #ffffff;
+  --c-text: #1f2d28;
+  --c-text-secondary: #6b7d76;
+  --c-text-tertiary: #9aa8a2;
+  --c-border: #e6efea;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--c-text);
+  background: var(--c-app-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+#app {
+  overflow: hidden;
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cdded7;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b3ccc1;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
