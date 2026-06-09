@@ -12,7 +12,7 @@ RUN npm run build
 
 
 # ============ Runtime Stage ============
-FROM registry.cn-shanghai.aliyuncs.com/sh-cloud/nginx:1.27-alpine
+FROM registry.cn-shanghai.aliyuncs.com/sh-cloud/nginx:1.30-alpine
 
 RUN rm -rf /usr/share/nginx/html/*
 
