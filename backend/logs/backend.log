@@ -19,3 +19,52 @@
 2026-06-07 23:10:39 - api_server - INFO - 收到聊天请求[会话 2795f7a37cfb45eca482d2ba8c10aaa1]: 什么有些发烧该怎么办
 2026-06-07 23:17:01 - api_server - INFO - 收到聊天请求[会话 2795f7a37cfb45eca482d2ba8c10aaa1]: 建议不错， 多谢。
 2026-06-07 23:23:44 - api_server - INFO - 收到聊天请求[会话 2687b2aaa6914badbbb80cd33cf664e6]: 如何提升睡眠质量？
+2026-06-08 23:31:41 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-08 23:31:41 - health_agents - INFO - [DataLoader] [数据接入] user=999 mode=control 来源={'watch': 'mock', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=69.0 HRR=12 TRIMP=810 疲劳红旗=4项 -> high
+2026-06-08 23:31:41 - health_agents - INFO - [physio_evaluator] RS=69.0 疲劳=high | 连续疲劳信号明显，中枢神经恢复差，今日必须运动降载。
+2026-06-08 23:31:41 - health_agents - INFO - [Router] 疲劳=high -> intervene
+2026-06-08 23:31:41 - health_agents - INFO - [exercise_coach] 降载[recovery]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-08 23:31:41 - health_agents - INFO - [nutrition_planner] 目标热量=2409kcal 蛋白=144g 油脂代偿=是
+2026-06-08 23:31:41 - health_agents - INFO - [guardrail_auditor] 安全审计(预留) -> 直通放行
+2026-06-08 23:31:41 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-08 23:31:41 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-08 23:31:41 - health_agents - INFO - [DataLoader] [数据接入] user=999 mode=experiment 来源={'watch': 'mock', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=93.6 HRR=20 TRIMP=120 疲劳红旗=0项 -> low
+2026-06-08 23:31:41 - health_agents - INFO - [physio_evaluator] RS=93.6 疲劳=low | 各项恢复指标良好，可维持原训练计划。
+2026-06-08 23:31:41 - health_agents - INFO - [Router] 疲劳=low -> maintain
+2026-06-08 23:31:41 - health_agents - INFO - [maintain_plan] 维持原计划 RS=93.6
+2026-06-08 23:31:41 - health_agents - INFO - [guardrail_auditor] 安全审计(预留) -> 直通放行
+2026-06-08 23:31:41 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-08 23:32:56 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=88.4 HRR=12 TRIMP=810 疲劳红旗=2项 -> medium
+2026-06-08 23:33:02 - health_agents - INFO - [physio_evaluator] RS=88.4 疲劳=medium | 尽管整体恢复得分较高，但心率恢复力偏低且静息心率连续三天升高，表明您的中枢疲劳水平有一定程度的积累，可能是近期训练强度较高所致。
+2026-06-08 23:33:02 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-08 23:33:08 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-08 23:33:30 - health_agents - INFO - [nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=是
+2026-06-08 23:33:30 - health_agents - INFO - [guardrail_auditor] 安全审计(预留) -> 直通放行
+2026-06-08 23:33:39 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-09 00:13:29 - api_server - INFO - [/chat 会话 verify-chat-1] 帮我生成今天的健康体检报告
+2026-06-09 00:13:35 - api_server - INFO - [/chat 会话 verify-chat-1] 我要录入今天的饮食
+2026-06-09 00:13:38 - api_server - INFO - [/chat 会话 verify-chat-1] 早餐燕麦牛奶，午餐鸡胸肉糙米饭西兰花，晚餐三文鱼沙拉
+2026-06-09 00:13:41 - api_server - INFO - [/chat 会话 verify-chat-1] 今天天气怎么样？讲个笑话
+2026-06-09 00:27:09 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-09 00:27:09 - health_agents - INFO - [DataLoader] [数据接入] user=999 mode=control 来源={'watch': 'mock', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'mock'} | RS=69.0 HRR=12 TRIMP=810 疲劳红旗=4项 -> high
+2026-06-09 00:27:09 - health_agents - INFO - [physio_evaluator] RS=69.0 疲劳=high | 连续疲劳信号明显，中枢神经恢复差，今日必须运动降载。
+2026-06-09 00:27:09 - health_agents - INFO - [Router] 疲劳=high -> intervene
+2026-06-09 00:27:09 - health_agents - INFO - [exercise_coach] 降载[recovery]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-09 00:27:09 - health_agents - INFO - [nutrition_planner] 目标热量=2409kcal 蛋白=144g 油脂代偿=是
+2026-06-09 00:27:09 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-09 00:27:09 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-09 00:27:09 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-09 00:27:09 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-09 00:27:09 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-09 00:27:09 - health_agents - INFO - [DataLoader] [数据接入] user=999 mode=control 来源={'watch': 'mock', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'mock'} | RS=69.0 HRR=12 TRIMP=810 疲劳红旗=4项 -> high
+2026-06-09 00:27:09 - health_agents - INFO - [physio_evaluator] RS=69.0 疲劳=high | 连续疲劳信号明显，中枢神经恢复差，今日必须运动降载。
+2026-06-09 00:27:09 - health_agents - INFO - [Router] 疲劳=high -> intervene
+2026-06-09 00:27:09 - health_agents - INFO - [exercise_coach] 降载[recovery]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-09 00:27:09 - health_agents - INFO - [nutrition_planner] 目标热量=2409kcal 蛋白=144g 油脂代偿=是
+2026-06-09 00:27:10 - health_agents - ERROR - [Guardrail] 安全日志写入失败: 错误:  插入或更新表 "safety_logs" 违反外键约束 "safety_logs_user_id_fkey"
+DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
+
+2026-06-09 00:27:10 - health_agents - INFO - [guardrail_auditor] 安全审计 -> ⛔ 拦截熔断
+2026-06-09 00:27:10 - health_agents - INFO - [report_generator] 安全拦截 -> 输出就医分流话术
+2026-06-09 00:27:10 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-09 00:27:10 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
