@@ -48,3 +48,20 @@ steps:
         from_secret: aliyun_registry_username
       password:
         from_secret: aliyun_registry_password
+        
+    - name: deploy
+      image: appleboy/drone-ssh
+      settings:
+        host:
+          from_secret: deploy_host
+        username:
+          from_secret: deploy_user
+        key:
+          from_secret: deploy_ssh_key
+        port: 22
+        script:
+          - cd /opt/hpu
+          - ./deploy.sh ${DRONE_COMMIT_SHA} ${DRONE_COMMIT_SHA}
+      depends_on:
+        - build-backend
+        - build-frontend
