@@ -1,0 +1,18 @@
+2026-06-09 00:48:38 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=88.4 HRR=12 TRIMP=810 疲劳红旗=2项 -> medium
+2026-06-09 00:48:43 - health_agents - INFO - [physio_evaluator] RS=88.4 疲劳=medium | 尽管整体恢复评分较高，但静息心率连续3天升高且心率恢复力较差，表明您的中枢系统可能存在一定疲劳，建议适当降低训练强度或增加休息时间。
+2026-06-09 00:48:43 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-09 00:48:48 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-09 00:48:55 - health_agents - INFO - [nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=是
+2026-06-09 00:48:55 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-09 00:48:59 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-09 08:47:23 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=88.4 HRR=12 TRIMP=810 疲劳红旗=2项 -> medium
+2026-06-09 08:47:31 - health_agents - ERROR - [LLM] 调用失败: Connection error.
+2026-06-09 08:47:31 - health_agents - INFO - [physio_evaluator] RS=88.4 疲劳=medium | 出现部分疲劳信号，建议适度降低训练强度并关注恢复。
+2026-06-09 08:47:31 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-09 08:47:38 - health_agents - ERROR - [LLM] 调用失败: Connection error.
+2026-06-09 08:47:38 - health_agents - INFO - [exercise_coach] 降载[recovery]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-09 08:47:46 - health_agents - ERROR - [LLM] 调用失败: Connection error.
+2026-06-09 08:47:46 - health_agents - INFO - [nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=是
+2026-06-09 08:47:46 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-09 08:47:53 - health_agents - ERROR - [LLM] 调用失败: Connection error.
+2026-06-09 08:47:53 - health_agents - INFO - [report_generator] 生成多模态体检报告

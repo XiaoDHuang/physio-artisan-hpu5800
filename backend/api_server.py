@@ -40,8 +40,10 @@ from store import get_store
 from store.postgres_store import save_assessment_artifacts
 from agents.langgraph_agents import LangGraphHealthAgents
 from agents import intake
+from agents import health_data as hdata
 from agents.safety import screen_text
 from store.safety_store import save_safety_log
+from store.postgres_store import load_latest_assessment
 
 
 # --------------------------- 日志配置 ---------------------------
@@ -348,6 +350,29 @@ async def get_status(task_id: str):
                           message=task["message"], result=task.get("result"))
 
 
+@app.get("/dashboard/{user_id}")
+async def get_dashboard(user_id: int):
+    """看板数据（纯数据库聚合，无 LLM、毫秒级）：KPI/身体/睡眠/饮食/运动/周对比。
+
+    供"非报告类看板"页面秒开使用；不触发多智能体工作流。
+    """
+    data = await asyncio.to_thread(hdata.get_week_overview, user_id)
+    return {"user_id": user_id, "dashboard": data}
+
+
+@app.get("/report/latest/{user_id}")
+async def get_latest_report(user_id: int):
+    """查询某用户最近一次已生成的报告（读 ai_conversations 落库缓存，免重复跑工作流）。
+
+    返回结构与 /status 的 result 一致（含 final_report.chart_data），并标记 source=cache。
+    若该用户尚无报告，返回 404。
+    """
+    result = await load_latest_assessment(user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="该用户暂无已生成的报告，请先调用 /plan 生成")
+    return result
+
+
 @app.get("/tasks")
 async def list_tasks():
     """列出全部任务摘要。"""
@@ -400,7 +425,9 @@ async def root():
         "endpoints": {
             "chat": "/chat - 任务型对话(报告/数据录入)",
             "plan": "/plan - 一键生成健康报告",
-            "status": "/status/{task_id} - 查询任务状态",
+            "status": "/status/{task_id} - 查询任务状态(报告一次性获取)",
+            "dashboard": "/dashboard/{user_id} - 看板数据聚合(纯DB)",
+            "report_latest": "/report/latest/{user_id} - 最近一次报告(落库缓存)",
             "conversations": "/conversations - 会话历史",
             "docs": "/docs - API文档",
         },

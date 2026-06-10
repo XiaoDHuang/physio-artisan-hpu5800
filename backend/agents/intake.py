@@ -48,12 +48,13 @@ DATA_ENTRY_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "types": {"diet_narrative": str},
         "field_labels": {"diet_narrative": "三餐食材与分量描述", "meal_type": "餐别"},
     },
-    # 身体测量（设计方案 §8.4 user_inputs）
+    # 身体测量（设计方案 §8.4 user_inputs；muscle_mass_kg 为可选，支持后期对话自动录入）
     "body": {
         "label": "身体测量",
         "required": ["weight_kg", "body_fat_pct"],
-        "types": {"weight_kg": float, "body_fat_pct": float},
-        "field_labels": {"weight_kg": "体重(kg)", "body_fat_pct": "体脂率(%)"},
+        "types": {"weight_kg": float, "body_fat_pct": float, "muscle_mass_kg": float},
+        "field_labels": {"weight_kg": "体重(kg)", "body_fat_pct": "体脂率(%)",
+                         "muscle_mass_kg": "肌肉量(kg)"},
     },
 }
 
@@ -125,8 +126,9 @@ _DDL_DONE = False
 def _ensure_schema(conn) -> None:
     """幂等补齐演示所需的列/索引（首次写入时执行一次）。"""
     with conn.cursor() as cur:
-        # users 增补体脂率列（设计方案需要，库内原缺）
+        # users 增补体脂率/肌肉量列（设计方案与仪表盘需要，库内原缺）
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS body_fat_pct FLOAT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS muscle_mass_kg FLOAT")
         # ai_conversations 以 session_id 作为会话键，需唯一索引以支持 UPSERT
         cur.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_conv_session "
@@ -198,18 +200,29 @@ def save_entry(data_type: str, cleaned: Dict[str, Any],
         return {"saved": True, "table": "nutrition_logs", "record_id": rid, "record": payload}
 
     if data_type == "body":
+        muscle = cleaned.get("muscle_mass_kg")
+
         def _upd(conn):
             with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE users SET weight_kg = %s, body_fat_pct = %s, "
-                    "updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                    (cleaned["weight_kg"], cleaned["body_fat_pct"], user_id),
-                )
+                if muscle is not None:
+                    cur.execute(
+                        "UPDATE users SET weight_kg = %s, body_fat_pct = %s, muscle_mass_kg = %s, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                        (cleaned["weight_kg"], cleaned["body_fat_pct"], muscle, user_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE users SET weight_kg = %s, body_fat_pct = %s, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                        (cleaned["weight_kg"], cleaned["body_fat_pct"], user_id),
+                    )
                 return cur.rowcount
 
         n = _run(_upd)
-        return {"saved": True, "table": "users", "updated_rows": n,
-                "record": {"weight_kg": cleaned["weight_kg"], "body_fat_pct": cleaned["body_fat_pct"]}}
+        rec = {"weight_kg": cleaned["weight_kg"], "body_fat_pct": cleaned["body_fat_pct"]}
+        if muscle is not None:
+            rec["muscle_mass_kg"] = muscle
+        return {"saved": True, "table": "users", "updated_rows": n, "record": rec}
 
     return {"saved": False, "error": f"未知录入类型: {data_type}"}
 

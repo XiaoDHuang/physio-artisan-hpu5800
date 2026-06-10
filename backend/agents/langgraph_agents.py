@@ -92,6 +92,7 @@ class HealthAgentState(TypedDict):
     fatigue_level: str              # high | medium | low —— 条件边依据
     training_plan: Dict[str, Any]
     meal_plan: Dict[str, Any]
+    sleep_advice: Dict[str, Any]
     safety_result: Dict[str, Any]
     final_report: Dict[str, Any]
 
@@ -153,6 +154,7 @@ class LangGraphHealthAgents:
         workflow.add_node("exercise_coach", self._exercise_coach_node)
         workflow.add_node("nutrition_planner", self._nutrition_planner_node)
         workflow.add_node("maintain_plan", self._maintain_plan_node)
+        workflow.add_node("sleep_advisor", self._sleep_advisor_node)
         workflow.add_node("guardrail_auditor", self._guardrail_auditor_node)
         workflow.add_node("report_generator", self._report_generator_node)
 
@@ -170,13 +172,14 @@ class LangGraphHealthAgents:
             },
         )
 
-        # 干预路径：教练 -> 营养 -> 安全审计
+        # 干预路径：教练 -> 营养 -> 睡眠建议
         workflow.add_edge("exercise_coach", "nutrition_planner")
-        workflow.add_edge("nutrition_planner", "guardrail_auditor")
-        # 维持路径：直接 -> 安全审计
-        workflow.add_edge("maintain_plan", "guardrail_auditor")
+        workflow.add_edge("nutrition_planner", "sleep_advisor")
+        # 维持路径：维持 -> 睡眠建议
+        workflow.add_edge("maintain_plan", "sleep_advisor")
 
-        # 安全审计 -> 报告生成 -> 结束
+        # 睡眠建议 -> 安全审计 -> 报告生成 -> 结束
+        workflow.add_edge("sleep_advisor", "guardrail_auditor")
         workflow.add_edge("guardrail_auditor", "report_generator")
         workflow.add_edge("report_generator", END)
 
@@ -275,7 +278,7 @@ class LangGraphHealthAgents:
     # ---------------------------------------------------------------------
     def _exercise_coach_node(self, state: HealthAgentState) -> HealthAgentState:
         d = state["derived"]
-        # 自主调用 wger 工具检索低负荷降载方案（mock）
+        # 自主调用 wger 工具检索低负荷降载方案（含组数/次数/时长处方）
         wger_result = tools.wger_exercise_search.invoke({"query": "core stretch mobility", "limit": 3})
 
         prompt = load_prompt("exercise_coach").format(
@@ -284,32 +287,67 @@ class LangGraphHealthAgents:
         )
         parsed = _parse_json(self._invoke_llm(prompt))
 
+        # 结构化动作（组数/次数/时长来自 wger 处方，确定性，不依赖 LLM 填）
+        exercises = self._structured_exercises(wger_result)
+        goals = self._user_goals(state)
         plan = {
             "training_type": parsed.get("training_type", "recovery"),
-            "exercises": parsed.get("exercises") or [e["name"] for e in wger_result["exercises"]],
+            "exercises": exercises,
             "reason": parsed.get("reason") or "中枢疲劳偏高，改用核心稳定与拉伸代替大重量深蹲，防止代偿受伤。",
+            "recommended_duration": goals.get("exercise_duration_target", "30-40"),
+            "calorie_target": goals.get("calorie_burn_session_target", "200-300"),
             "source": parsed.get("source", "wger_api"),
         }
         return self._commit(state, "exercise_coach", plan,
                             extra={"training_plan": plan},
                             tool_calls=[{"tool": "wger_exercise_search", "result": wger_result}],
-                            note=f"降载[{plan['training_type']}]: {plan['exercises']}")
+                            note=f"降载[{plan['training_type']}]: {[e['name'] for e in exercises]}")
+
+    @staticmethod
+    def _structured_exercises(wger_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """把 wger 检索结果整理成 {name, sets, reps|duration_sec, muscles, description} 列表。"""
+        out = []
+        for e in wger_result.get("exercises", []):
+            p = e.get("prescription", {})
+            item = {"name": e["name"], "muscles": e.get("muscles", []),
+                    "description": e.get("description", ""), "sets": p.get("sets")}
+            if "reps" in p:
+                item["reps"] = p["reps"]
+            if "duration_sec" in p:
+                item["duration_sec"] = p["duration_sec"]
+            out.append(item)
+        return out
+
+    @staticmethod
+    def _user_goals(state: HealthAgentState) -> Dict[str, Any]:
+        """从用户画像取目标配置（用于推荐时长/消耗目标）。"""
+        try:
+            return hdata.get_user_profile(state.get("user_id", 1)).get("goals") or {}
+        except Exception:  # noqa: BLE001
+            return {}
 
     # ---------------------------------------------------------------------
     # 节点 2'：维持原计划（低疲劳路径）
     # ---------------------------------------------------------------------
     def _maintain_plan_node(self, state: HealthAgentState) -> HealthAgentState:
         d = state["derived"]
+        # 维持/进阶：检索力量模板（深蹲/俯卧撑/硬拉/平板，含组数次数）
+        wger_result = tools.wger_exercise_search.invoke({"query": "strength", "limit": 4})
+        exercises = self._structured_exercises(wger_result)
+        goals = self._user_goals(state)
         plan = {
             "training_type": "maintain",
-            "exercises": ["维持原定中高强度训练计划"],
-            "reason": f"准备度良好(RS={d['rs']})，恢复充分，可维持原高强度训练。",
-            "source": "rule_based",
+            "exercises": exercises,
+            "reason": f"准备度良好(RS={d['rs']})，恢复充分，可维持原中高强度力量训练。",
+            "recommended_duration": goals.get("exercise_duration_target", "40-60"),
+            "calorie_target": goals.get("calorie_burn_session_target", "320-450"),
+            "source": "wger_api",
             "encouragement": "状态在线！今天可以继续暴汗，注意训练后拉伸与补水。",
         }
         return self._commit(state, "maintain_plan", plan,
                             extra={"training_plan": plan},
-                            note=f"维持原计划 RS={d['rs']}")
+                            tool_calls=[{"tool": "wger_exercise_search", "result": wger_result}],
+                            note=f"维持原计划 RS={d['rs']} -> {[e['name'] for e in exercises]}")
 
     # ---------------------------------------------------------------------
     # 节点 3：膳食规划智能体
@@ -332,11 +370,16 @@ class LangGraphHealthAgents:
         parsed = _parse_json(self._invoke_llm(prompt))
 
         protein_target = int(round(1.8 * snap["weight_kg"]))
+        # 结构化三餐（餐别/食材/克数/单品热量），确定性组装，不依赖 LLM 填
+        meal_struct = tools.build_meal_plan(tools.LAMBDA_SAUCE if sauce else 1.0)
         plan = {
             "total_calories": parsed.get("total_calories", max(1200, d["tdee"] - 300)),
             "protein_target_g": parsed.get("protein_target_g", protein_target),
             "diet_suggestion": parsed.get("diet_suggestion")
                 or "晚餐建议补充150g煎三文鱼配糙米饭，已调用USDA数据库配平今日蛋白质缺口。",
+            "meals": meal_struct["meals"],
+            "day_total_calories": meal_struct["day_total_calories"],
+            "day_total_protein": meal_struct["day_total_protein"],
             "sauce_compensation": tools.LAMBDA_SAUCE if sauce else 1.0,
             "source": parsed.get("source", "usda_api"),
         }
@@ -345,6 +388,36 @@ class LangGraphHealthAgents:
                             tool_calls=[{"tool": "usda_food_search", "result": usda_result}],
                             note=f"目标热量={plan['total_calories']}kcal 蛋白={plan['protein_target_g']}g "
                                  f"油脂代偿={'是' if sauce else '否'}")
+
+    # ---------------------------------------------------------------------
+    # 节点 3'：睡眠建议智能体
+    # ---------------------------------------------------------------------
+    def _sleep_advisor_node(self, state: HealthAgentState) -> HealthAgentState:
+        snap = state["snapshot"]
+        sleep_score = snap.get("sleep_score", 0)
+        prompt = load_prompt("sleep_advisor").format(
+            sleep_score=sleep_score,
+            total_hours=round(max(5.0, sleep_score / 12.0 + 1.0), 1),
+            deep_sleep_percent=max(8, min(28, int(sleep_score / 4))),
+            rhr=snap.get("rhr_today", 60),
+        )
+        parsed = _parse_json(self._invoke_llm(prompt))
+        advice = {
+            "advice": parsed.get("advice") or self._fallback_sleep_advice(sleep_score),
+            "focus": parsed.get("focus") or ("尽早入睡、保证深睡" if sleep_score < 75 else "保持规律作息"),
+            "source": "rule_based",
+        }
+        return self._commit(state, "sleep_advisor", advice,
+                            extra={"sleep_advice": advice},
+                            note=f"睡眠建议(评分{sleep_score}): {advice['focus']}")
+
+    @staticmethod
+    def _fallback_sleep_advice(sleep_score: int) -> str:
+        if sleep_score < 65:
+            return "睡眠明显不足：固定 23 点前入睡，睡前 1 小时远离手机蓝光，卧室控温 20-22℃，午后忌咖啡因。"
+        if sleep_score < 80:
+            return "睡眠尚可但有提升空间：保持规律作息，睡前做 5 分钟拉伸放松，避免睡前剧烈运动与饱食。"
+        return "睡眠良好：维持当前作息节律，周末也尽量同点起床，巩固深睡比例。"
 
     # ---------------------------------------------------------------------
     # 节点 4：安全审计智能体（输出审计，防御纵深）
@@ -491,7 +564,7 @@ class LangGraphHealthAgents:
             "user_id": user_id, "mode": mode, "user_query": user_query,
             "snapshot": {}, "derived": {},
             "physio_assessment": {}, "fatigue_level": "low",
-            "training_plan": {}, "meal_plan": {},
+            "training_plan": {}, "meal_plan": {}, "sleep_advice": {},
             "safety_result": {}, "final_report": {},
             "agent_outputs": {}, "reasoning_chain": [],
             "current_agent": "", "iteration_count": 0, "status": "init",
@@ -506,6 +579,7 @@ class LangGraphHealthAgents:
                 "fatigue_level": final.get("fatigue_level"),
                 "training_plan": final.get("training_plan", {}),
                 "meal_plan": final.get("meal_plan", {}),
+                "sleep_advice": final.get("sleep_advice", {}),
                 "safety_result": final.get("safety_result", {}),
                 "final_report": final.get("final_report", {}),
                 "derived_metrics": final.get("derived", {}),

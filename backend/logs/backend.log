@@ -68,3 +68,14 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-09 00:27:10 - health_agents - INFO - [report_generator] 安全拦截 -> 输出就医分流话术
 2026-06-09 00:27:10 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
 2026-06-09 00:27:10 - health_agents - INFO - [health_data] users 无 id=999, 使用 mock 画像
+2026-06-10 18:08:36 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=420 疲劳红旗=1项 -> medium
+2026-06-10 18:08:40 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 你的静息心率连续3天升高，可能是近期训练负荷较高导致的中枢疲劳迹象，请适当关注恢复。
+2026-06-10 18:08:40 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-10 18:08:47 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-10 18:08:59 - health_agents - INFO - [nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=否
+2026-06-10 18:09:02 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分88): 减少睡前蓝光暴露以提升深睡比例。
+2026-06-10 18:09:02 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-10 18:09:06 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-10 19:20:29 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-10 20:40:16 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-10 20:41:35 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…

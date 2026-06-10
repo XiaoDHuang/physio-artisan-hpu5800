@@ -1,0 +1,511 @@
+{
+    "success": true,
+    "mode": "control",
+    "physio_assessment": {
+      "rs": 88.4,
+      "fatigue": "medium",
+      "rhr_status": "normal",
+      "insight": "出现部分疲劳信号，建议适度降低训练强度并关注恢复。",
+      "hrr": 12,
+      "trimp": 810
+    },
+    "fatigue_level": "medium",
+    "training_plan": {
+      "training_type": "recovery",
+      "exercises": [
+        "核心拉伸 (Core Stretch)",
+        "关节灵活性训练 (Mobility)"
+      ],
+      "reason": "中枢疲劳偏高，改用核心稳定与拉伸代替大重量深蹲，防止代偿受伤。",
+      "source": "wger_api"
+    },
+    "meal_plan": {
+      "total_calories": 2300,
+      "protein_target_g": 130,
+      "diet_suggestion": "晚餐建议补充150g煎三文鱼配糙米饭，已调用USDA数据库配平今日蛋白质缺口。",
+      "sauce_compensation": 1.3,
+      "source": "usda_api"
+    },
+    "safety_result": {
+      "status": "passed",
+      "reason": "未命中安全红线，[安全通行]。",
+      "final_text": "",
+      "category": "safe",
+      "level": "safe",
+      "violations": [],
+      "warnings": [],
+      "implemented": true
+    },
+    "final_report": {
+      "visual_metrics": {
+        "rs": 88.4,
+        "body_fat": 24.0,
+        "body_age": 22.0
+      },
+      "vocal_narrative": "早上好。今日准备度得分 88.4，出现部分疲劳信号，建议适度降低训练强度并关注恢复。我已为你调整今日训练与膳食，记得跟练并按食谱补充蛋白质。本报告由AI生成，不能替代专业医疗诊断。如身体持续不适，请及时就医。",
+      "chart_data": {
+        "rs_gauge": {
+          "value": 88.4,
+          "min": 0,
+          "max": 100,
+          "fatigue": "medium",
+          "zones": [
+            {
+              "label": "高疲劳",
+              "range": [
+                0,
+                55
+              ],
+              "color": "#DC3545"
+            },
+            {
+              "label": "中疲劳",
+              "range": [
+                55,
+                75
+              ],
+              "color": "#FFC107"
+            },
+            {
+              "label": "良好",
+              "range": [
+                75,
+                100
+              ],
+              "color": "#28A745"
+            }
+          ]
+        },
+        "trend_dual": {
+          "days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5",
+            "D6",
+            "D7"
+          ],
+          "hrv": {
+            "control": [
+              45.0,
+              42.8,
+              40.7,
+              38.5,
+              36.3,
+              34.2,
+              32.0
+            ],
+            "experiment": [
+              45.0,
+              45.0,
+              45.0,
+              45.0,
+              45.0,
+              45.0,
+              45.0
+            ],
+            "unit": "ms"
+          },
+          "body_age": {
+            "control": [
+              35.0,
+              35.1,
+              35.2,
+              35.2,
+              35.3,
+              35.4,
+              35.5
+            ],
+            "experiment": [
+              35.0,
+              34.9,
+              34.9,
+              34.8,
+              34.7,
+              34.7,
+              34.6
+            ],
+            "unit": "岁"
+          },
+          "legend": {
+            "control": "放任恶化(灰虚线)",
+            "experiment": "采纳建议(绿实线)"
+          }
+        },
+        "radar_compare": {
+          "dimensions": [
+            "睡眠",
+            "HRV",
+            "心率恢复",
+            "准备度",
+            "体脂(反向)"
+          ],
+          "control": [
+            75.0,
+            45.0,
+            35.0,
+            80.7,
+            40.0
+          ],
+          "experiment": [
+            75.0,
+            45.0,
+            75.0,
+            80.7,
+            43.3
+          ],
+          "legend": {
+            "control": "干预前",
+            "experiment": "干预后"
+          }
+        },
+        "cards": {
+          "training": {
+            "training_type": "recovery",
+            "exercises": [
+              "核心拉伸 (Core Stretch)",
+              "关节灵活性训练 (Mobility)"
+            ],
+            "reason": "中枢疲劳偏高，改用核心稳定与拉伸代替大重量深蹲，防止代偿受伤。",
+            "source": "wger_api"
+          },
+          "meal": {
+            "total_calories": 2300,
+            "protein_target_g": 130,
+            "diet_suggestion": "晚餐建议补充150g煎三文鱼配糙米饭，已调用USDA数据库配平今日蛋白质缺口。",
+            "sauce_compensation": 1.3,
+            "source": "usda_api"
+          },
+          "physio": {
+            "rs": 88.4,
+            "fatigue": "medium",
+            "rhr_status": "normal",
+            "insight": "出现部分疲劳信号，建议适度降低训练强度并关注恢复。",
+            "hrr": 12,
+            "trimp": 810
+          }
+        },
+        "visual_metrics": {
+          "rs": 88.4,
+          "body_fat": 24.0,
+          "body_age": 22.0
+        }
+      }
+    },
+    "derived_metrics": {
+      "rs": 88.4,
+      "hrr": 12,
+      "trimp": 810,
+      "fatigue": "medium",
+      "flag_count": 2,
+      "flags": [
+        "HRR 12bpm < 18bpm",
+        "静息心率连续3天升高"
+      ],
+      "hrv_baseline": 45.0,
+      "rhr_baseline": 60,
+      "bmi": 23.5,
+      "bmr": 1678,
+      "tdee": 2600,
+      "body_age": 22.0,
+      "rhr_status": "normal"
+    },
+    "data_sources": {
+      "watch": "db",
+      "baseline": "default",
+      "exercise": "mock",
+      "diet": "mock",
+      "body": "db"
+    },
+    "reasoning_chain": [
+      "[数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'default', 'exercise': 'mock', 'diet': 'mock', 'body': 'db'} | RS=88.4 HRR=12 TRIMP=810 疲劳红旗=2项 -> medium",
+      "[physio_evaluator] RS=88.4 疲劳=medium | 出现部分疲劳信号，建议适度降低训练强度并关注恢复。",
+      "[条件边] 疲劳度=medium -> 触发降载干预",
+      "[exercise_coach] 降载[recovery]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']",
+      "[nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=是",
+      "[guardrail_auditor] 安全审计 -> [安全通行]",
+      "[report_generator] 生成多模态体检报告"
+    ],
+    "agent_outputs": {
+      "physio_evaluator": {
+        "output": {
+          "rs": 88.4,
+          "fatigue": "medium",
+          "rhr_status": "normal",
+          "insight": "出现部分疲劳信号，建议适度降低训练强度并关注恢复。",
+          "hrr": 12,
+          "trimp": 810
+        },
+        "tool_calls": [],
+        "timestamp": "2026-06-09T08:47:31.145465",
+        "status": "completed"
+      },
+      "exercise_coach": {
+        "output": {
+          "training_type": "recovery",
+          "exercises": [
+            "核心拉伸 (Core Stretch)",
+            "关节灵活性训练 (Mobility)"
+          ],
+          "reason": "中枢疲劳偏高，改用核心稳定与拉伸代替大重量深蹲，防止代偿受伤。",
+          "source": "wger_api"
+        },
+        "tool_calls": [
+          {
+            "tool": "wger_exercise_search",
+            "result": {
+              "source": "wger_api",
+              "query": "core stretch mobility",
+              "exercises": [
+                {
+                  "name": "核心拉伸 (Core Stretch)",
+                  "muscles": [
+                    "核心",
+                    "脊柱"
+                  ],
+                  "load": "low",
+                  "description": "仰卧/四点支撑下进行脊柱中立位拉伸，激活腹横肌"
+                },
+                {
+                  "name": "关节灵活性训练 (Mobility)",
+                  "muscles": [
+                    "髋",
+                    "胸椎"
+                  ],
+                  "load": "low",
+                  "description": "动态髋关节绕环与胸椎旋转，改善活动度"
+                }
+              ]
+            }
+          }
+        ],
+        "timestamp": "2026-06-09T08:47:38.649775",
+        "status": "completed"
+      },
+      "nutrition_planner": {
+        "output": {
+          "total_calories": 2300,
+          "protein_target_g": 130,
+          "diet_suggestion": "晚餐建议补充150g煎三文鱼配糙米饭，已调用USDA数据库配平今日蛋白质缺口。",
+          "sauce_compensation": 1.3,
+          "source": "usda_api"
+        },
+        "tool_calls": [
+          {
+            "tool": "usda_food_search",
+            "result": [
+              {
+                "source": "usda_api",
+                "food": "salmon",
+                "per": "100g",
+                "calories": 208,
+                "protein": 20.0,
+                "carbs": 0.0,
+                "fat": 13.0
+              },
+              {
+                "source": "usda_api",
+                "food": "鸡胸肉",
+                "per": "100g",
+                "calories": 133,
+                "protein": 31.0,
+                "carbs": 0.0,
+                "fat": 1.2
+              },
+              {
+                "source": "usda_api",
+                "food": "糙米饭",
+                "per": "100g",
+                "calories": 123,
+                "protein": 2.6,
+                "carbs": 25.6,
+                "fat": 0.9
+              }
+            ]
+          }
+        ],
+        "timestamp": "2026-06-09T08:47:46.093490",
+        "status": "completed"
+      },
+      "guardrail_auditor": {
+        "output": {
+          "status": "passed",
+          "reason": "未命中安全红线，[安全通行]。",
+          "final_text": "",
+          "category": "safe",
+          "level": "safe",
+          "violations": [],
+          "warnings": [],
+          "implemented": true
+        },
+        "tool_calls": [],
+        "timestamp": "2026-06-09T08:47:46.108086",
+        "status": "completed"
+      },
+      "report_generator": {
+        "output": {
+          "visual_metrics": {
+            "rs": 88.4,
+            "body_fat": 24.0,
+            "body_age": 22.0
+          },
+          "vocal_narrative": "早上好。今日准备度得分 88.4，出现部分疲劳信号，建议适度降低训练强度并关注恢复。我已为你调整今日训练与膳食，记得跟练并按食谱补充蛋白质。本报告由AI生成，不能替代专业医疗诊断。如身体持续不适，请及时就医。",
+          "chart_data": {
+            "rs_gauge": {
+              "value": 88.4,
+              "min": 0,
+              "max": 100,
+              "fatigue": "medium",
+              "zones": [
+                {
+                  "label": "高疲劳",
+                  "range": [
+                    0,
+                    55
+                  ],
+                  "color": "#DC3545"
+                },
+                {
+                  "label": "中疲劳",
+                  "range": [
+                    55,
+                    75
+                  ],
+                  "color": "#FFC107"
+                },
+                {
+                  "label": "良好",
+                  "range": [
+                    75,
+                    100
+                  ],
+                  "color": "#28A745"
+                }
+              ]
+            },
+            "trend_dual": {
+              "days": [
+                "D1",
+                "D2",
+                "D3",
+                "D4",
+                "D5",
+                "D6",
+                "D7"
+              ],
+              "hrv": {
+                "control": [
+                  45.0,
+                  42.8,
+                  40.7,
+                  38.5,
+                  36.3,
+                  34.2,
+                  32.0
+                ],
+                "experiment": [
+                  45.0,
+                  45.0,
+                  45.0,
+                  45.0,
+                  45.0,
+                  45.0,
+                  45.0
+                ],
+                "unit": "ms"
+              },
+              "body_age": {
+                "control": [
+                  35.0,
+                  35.1,
+                  35.2,
+                  35.2,
+                  35.3,
+                  35.4,
+                  35.5
+                ],
+                "experiment": [
+                  35.0,
+                  34.9,
+                  34.9,
+                  34.8,
+                  34.7,
+                  34.7,
+                  34.6
+                ],
+                "unit": "岁"
+              },
+              "legend": {
+                "control": "放任恶化(灰虚线)",
+                "experiment": "采纳建议(绿实线)"
+              }
+            },
+            "radar_compare": {
+              "dimensions": [
+                "睡眠",
+                "HRV",
+                "心率恢复",
+                "准备度",
+                "体脂(反向)"
+              ],
+              "control": [
+                75.0,
+                45.0,
+                35.0,
+                80.7,
+                40.0
+              ],
+              "experiment": [
+                75.0,
+                45.0,
+                75.0,
+                80.7,
+                43.3
+              ],
+              "legend": {
+                "control": "干预前",
+                "experiment": "干预后"
+              }
+            },
+            "cards": {
+              "training": {
+                "training_type": "recovery",
+                "exercises": [
+                  "核心拉伸 (Core Stretch)",
+                  "关节灵活性训练 (Mobility)"
+                ],
+                "reason": "中枢疲劳偏高，改用核心稳定与拉伸代替大重量深蹲，防止代偿受伤。",
+                "source": "wger_api"
+              },
+              "meal": {
+                "total_calories": 2300,
+                "protein_target_g": 130,
+                "diet_suggestion": "晚餐建议补充150g煎三文鱼配糙米饭，已调用USDA数据库配平今日蛋白质缺口。",
+                "sauce_compensation": 1.3,
+                "source": "usda_api"
+              },
+              "physio": {
+                "rs": 88.4,
+                "fatigue": "medium",
+                "rhr_status": "normal",
+                "insight": "出现部分疲劳信号，建议适度降低训练强度并关注恢复。",
+                "hrr": 12,
+                "trimp": 810
+              }
+            },
+            "visual_metrics": {
+              "rs": 88.4,
+              "body_fat": 24.0,
+              "body_age": 22.0
+            }
+          }
+        },
+        "tool_calls": [],
+        "timestamp": "2026-06-09T08:47:53.479262",
+        "status": "completed"
+      }
+    },
+    "total_iterations": 5,
+    "status": "completed"
+  }

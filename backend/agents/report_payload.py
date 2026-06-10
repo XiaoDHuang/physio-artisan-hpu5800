@@ -111,12 +111,26 @@ def build_report_payload(user_id: int, result: Dict[str, Any]) -> Dict[str, Any]
         "legend": {"control": "干预前", "experiment": "干预后"},
     }
 
-    # ④ 今日训练 / 餐盘卡片（直接给前端渲染）
+    # ④ 今日训练 / 餐盘 / 睡眠建议 / 生理 卡片（直接给前端渲染）
+    #    health_advice = 运动/睡眠/饮食 三张建议卡的文本（对应 UI"健康建议"区）
     cards = {
         "training": result.get("training_plan", {}),
         "meal": result.get("meal_plan", {}),
+        "sleep": result.get("sleep_advice", {}),
         "physio": result.get("physio_assessment", {}),
+        "health_advice": {
+            "exercise": (result.get("training_plan", {}) or {}).get("reason", ""),
+            "sleep": (result.get("sleep_advice", {}) or {}).get("advice", ""),
+            "nutrition": (result.get("meal_plan", {}) or {}).get("diet_suggestion", ""),
+        },
     }
+
+    # ⑤ 仪表盘各面板（来自数据库真实周聚合）：身体概览/睡眠/饮食/运动/周对比/KPI
+    try:
+        dashboard = hdata.get_week_overview(user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error("[report_payload] 周聚合失败: %s", e)
+        dashboard = {}
 
     return {
         "rs_gauge": rs_gauge,
@@ -124,4 +138,5 @@ def build_report_payload(user_id: int, result: Dict[str, Any]) -> Dict[str, Any]
         "radar_compare": radar_compare,
         "cards": cards,
         "visual_metrics": (result.get("final_report", {}) or {}).get("visual_metrics", {}),
+        "dashboard": dashboard,
     }

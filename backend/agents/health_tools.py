@@ -176,39 +176,93 @@ def detect_sauce(diet_narrative: str) -> bool:
 #     函数签名与设计方案一致，后续可替换为真实 HTTP 调用。
 # =============================================================================
 
-# wger 动作库（mock）：低负荷恢复类动作
+# wger 动作库（mock）：含处方(组数/次数/时长)，便于前端渲染"4组×12次 / 5分钟"
+# prescription: {sets, reps}=力量类 ; {sets, duration_sec}=拉伸/恢复类
 EXERCISE_LIBRARY: Dict[str, Dict[str, Any]] = {
+    # —— 低负荷恢复类 ——
     "core stretch": {"name": "核心拉伸 (Core Stretch)", "muscles": ["核心", "脊柱"], "load": "low",
-                      "description": "仰卧/四点支撑下进行脊柱中立位拉伸，激活腹横肌"},
+                      "description": "仰卧/四点支撑下进行脊柱中立位拉伸，激活腹横肌",
+                      "prescription": {"sets": 3, "duration_sec": 30}},
     "mobility": {"name": "关节灵活性训练 (Mobility)", "muscles": ["髋", "胸椎"], "load": "low",
-                  "description": "动态髋关节绕环与胸椎旋转，改善活动度"},
+                  "description": "动态髋关节绕环与胸椎旋转，改善活动度",
+                  "prescription": {"sets": 2, "duration_sec": 60}},
     "cat cow": {"name": "猫牛式 (Cat-Cow)", "muscles": ["脊柱", "核心"], "load": "low",
-                 "description": "四点支撑，呼吸配合交替拱背凹背，松动脊柱"},
+                 "description": "四点支撑，呼吸配合交替拱背凹背，松动脊柱",
+                 "prescription": {"sets": 3, "reps": 12}},
     "dead bug": {"name": "死虫式 (Dead Bug)", "muscles": ["核心", "腹横肌"], "load": "low",
-                  "description": "仰卧，对侧手脚交替伸展，维持腰椎稳定"},
+                  "description": "仰卧，对侧手脚交替伸展，维持腰椎稳定",
+                  "prescription": {"sets": 3, "reps": 10}},
     "box squat": {"name": "徒手箱式深蹲 (Box Squat)", "muscles": ["股四头肌", "臀大肌"], "load": "low",
-                   "description": "蹲至箱子高度控制离心，降低腰椎剪切负荷"},
+                   "description": "蹲至箱子高度控制离心，降低腰椎剪切负荷",
+                   "prescription": {"sets": 3, "reps": 12}},
+    # —— 中高强度力量类（维持/进阶路径用）——
+    "squat": {"name": "深蹲 (Squat)", "muscles": ["股四头肌", "臀大肌"], "load": "high",
+               "description": "杠铃/徒手深蹲，屈髋屈膝至大腿平行", "prescription": {"sets": 4, "reps": 12}},
+    "push up": {"name": "俯卧撑 (Push-up)", "muscles": ["胸大肌", "三头肌"], "load": "medium",
+                 "description": "俯身屈臂下放至胸近地面再推起", "prescription": {"sets": 4, "reps": 12}},
+    "deadlift": {"name": "硬拉 (Deadlift)", "muscles": ["臀大肌", "竖脊肌", "腘绳肌"], "load": "high",
+                  "description": "髋铰链发力将杠铃拉起，保持脊柱中立", "prescription": {"sets": 4, "reps": 10}},
+    "plank": {"name": "平板支撑 (Plank)", "muscles": ["核心"], "load": "medium",
+               "description": "肘撑地面维持躯干一条直线", "prescription": {"sets": 3, "duration_sec": 45}},
 }
 
 _DEFAULT_RECOVERY = ["cat cow", "dead bug", "core stretch"]
+_STRENGTH_PLAN = ["squat", "push up", "deadlift", "plank"]
 
 
 @tool
 def wger_exercise_search(query: str = "stretch", limit: int = 3) -> Dict[str, Any]:
-    """从 wger 动作库检索低负荷/恢复类训练动作。
+    """从 wger 动作库检索训练动作（含组数/次数/时长处方）。
 
     Args:
-        query: 检索关键词，如 "core stretch" / "mobility"。
+        query: 检索关键词，如 "core stretch" / "mobility" / "strength"。
         limit: 返回动作数量上限。
 
     Returns:
-        {"source": "wger_api", "query": ..., "exercises": [...]}
+        {"source": "wger_api", "query": ..., "exercises": [{name, muscles, prescription, ...}]}
     """
     q = (query or "").lower()
-    matched = [v for k, v in EXERCISE_LIBRARY.items() if k in q or q in k]
-    if not matched:
-        matched = [EXERCISE_LIBRARY[k] for k in _DEFAULT_RECOVERY]
+    if "strength" in q or "力量" in q or "维持" in q or "maintain" in q:
+        matched = [EXERCISE_LIBRARY[k] for k in _STRENGTH_PLAN]
+    else:
+        matched = [v for k, v in EXERCISE_LIBRARY.items() if k in q or q in k]
+        if not matched:
+            matched = [EXERCISE_LIBRARY[k] for k in _DEFAULT_RECOVERY]
     return {"source": "wger_api", "query": query, "exercises": matched[: max(1, limit)]}
+
+
+# —— 结构化餐单模板（餐别×食材×克数），单品热量由 FOOD_DATABASE 实算 ——
+_MEAL_TEMPLATES = [
+    {"meal": "早餐", "time": "08:30", "items": [("鸡蛋", 100), ("希腊酸奶", 150), ("蓝莓", 50)]},
+    {"meal": "午餐", "time": "12:30", "items": [("鸡胸肉", 150), ("糙米饭", 120), ("西兰花", 100)]},
+    {"meal": "晚餐", "time": "18:30", "items": [("三文鱼", 150), ("藜麦", 80), ("西兰花", 100)]},
+]
+
+
+def build_meal_plan(sauce_factor: float = 1.0) -> Dict[str, Any]:
+    """基于 USDA 食物库组装结构化三餐（餐别/食材/克数/单品热量/蛋白）。
+
+    Args:
+        sauce_factor: 油脂代偿系数（检测到酱料时传 LAMBDA_SAUCE）。
+    Returns: {"meals": [...], "day_total_calories": int, "day_total_protein": int}
+    """
+    meals = []
+    day_cal = day_pro = 0.0
+    for tpl in _MEAL_TEMPLATES:
+        foods = []
+        meal_cal = 0.0
+        for name, grams in tpl["items"]:
+            db = FOOD_DATABASE.get(name, {})
+            factor = grams / 100.0
+            cal = round(db.get("calories", 0) * factor * sauce_factor)
+            pro = round(db.get("protein", 0) * factor, 1)
+            foods.append({"name": name, "grams": grams, "calories": cal, "protein": pro})
+            meal_cal += cal
+            day_pro += pro
+        day_cal += meal_cal
+        meals.append({"meal": tpl["meal"], "time": tpl["time"],
+                      "total_calories": int(meal_cal), "foods": foods})
+    return {"meals": meals, "day_total_calories": int(day_cal), "day_total_protein": int(round(day_pro))}
 
 
 # USDA 食物库（mock）：每 100g 营养（kcal / 蛋白g / 碳水g / 脂肪g）

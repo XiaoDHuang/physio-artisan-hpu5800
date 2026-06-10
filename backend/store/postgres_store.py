@@ -16,7 +16,7 @@ import asyncio
 import json
 from typing import Dict, List, Any
 
-from psycopg2.extras import Json
+from psycopg2.extras import Json, RealDictCursor
 
 from .conversation_store import (
     ConversationStore,
@@ -192,6 +192,7 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
     }
     recommendations = {
         "physio_assessment": result.get("physio_assessment", {}),
+        "sleep_advice": result.get("sleep_advice", {}),
         "final_report": result.get("final_report", {}),
         "mode": result.get("mode"),
         "fatigue_level": result.get("fatigue_level"),
@@ -230,3 +231,56 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
 async def save_assessment_artifacts(session_id: str, user_id: int, result: Dict[str, Any]) -> None:
     """异步回写健康决策产出到 ai_conversations（同 session_id 行）。"""
     await asyncio.to_thread(_save_artifacts_sync, session_id, user_id, result)
+
+
+# =============================================================================
+# 读取某用户最近一次已生成的报告（供 /report/latest 复用，免重复跑工作流）
+# =============================================================================
+def _load_latest_sync(user_id: int):
+    pool = get_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT session_id, recommendations, agent_decisions, safety_logs,
+                       training_plan, meal_plan, speech_report, created_at
+                FROM ai_conversations
+                WHERE user_id = %s AND training_plan IS NOT NULL
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        pool.putconn(conn)
+
+
+async def load_latest_assessment(user_id: int) -> Dict[str, Any]:
+    """读取并还原某用户最近一次报告为 run_health_assessment 同构结构（无则返回 None）。"""
+    row = await asyncio.to_thread(_load_latest_sync, user_id)
+    if not row:
+        return None
+    rec = row.get("recommendations") or {}
+    ad = row.get("agent_decisions") or {}
+    return {
+        "success": True,
+        "source": "cache",                       # 标记来自落库缓存，非实时工作流
+        "session_id": row.get("session_id"),
+        "mode": rec.get("mode"),
+        "fatigue_level": rec.get("fatigue_level"),
+        "physio_assessment": rec.get("physio_assessment", {}),
+        "sleep_advice": rec.get("sleep_advice", {}),
+        "training_plan": row.get("training_plan") or {},
+        "meal_plan": row.get("meal_plan") or {},
+        "safety_result": row.get("safety_logs") or {},
+        "final_report": rec.get("final_report", {}),
+        "reasoning_chain": ad.get("reasoning_chain", []),
+        "agent_outputs": ad.get("agent_outputs", {}),
+        "derived_metrics": ad.get("derived_metrics", {}),
+        "data_sources": ad.get("data_sources", {}),
+        "speech_report": row.get("speech_report"),
+        "created_at": str(row.get("created_at")),
+        "status": "completed",
+    }

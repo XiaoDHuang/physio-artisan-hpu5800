@@ -109,7 +109,8 @@ def _query_all(sql: str, params: tuple) -> List[Dict[str, Any]]:
 def get_user_profile(user_id: int) -> Dict[str, Any]:
     """读取用户画像；库无记录则回退 mock 小明画像。"""
     row = _query_one(
-        "SELECT id, name, age, gender, height_cm, weight_kg, goal, activity_level "
+        "SELECT id, name, age, gender, height_cm, weight_kg, goal, activity_level, "
+        "body_fat_pct, muscle_mass_kg, goals "
         "FROM users WHERE id = %s",
         (user_id,),
     )
@@ -298,3 +299,117 @@ def compute_metrics(user_id: int, mode: Optional[str] = None) -> Dict[str, Any]:
         "rhr_status": "elevated" if snap["rhr_today"] > rhr_baseline else "normal",
     }
     return {"snapshot": snap, "derived": derived}
+
+
+# =============================================================================
+# 仪表盘周聚合：供「健康报告」各面板取数（DB 真实历史，缺数据则返回 None/空）
+# =============================================================================
+def _avg(vals):
+    vals = [v for v in vals if v is not None]
+    return round(sum(vals) / len(vals), 1) if vals else None
+
+
+def get_week_overview(user_id: int, days: int = 14) -> Dict[str, Any]:
+    """聚合最近 days 天（本周+上周）数据，产出仪表盘各面板。
+
+    返回面板：kpi / body_overview / sleep / nutrition / exercise_today / week_summary。
+    无历史数据时各字段尽量回退 None，不抛异常。
+    """
+    from agents import health_tools as tools
+
+    rows = _query_all(
+        "SELECT date, steps, exercise_minutes, calories_burned, heart_rate_avg, "
+        "heart_rate_rest, hrv_data, sleep_data FROM watch_data "
+        "WHERE user_id = %s ORDER BY date DESC LIMIT %s",
+        (user_id, days),
+    )
+    profile = get_user_profile(user_id)
+    goals = profile.get("goals") or {}
+    steps_goal = goals.get("steps_goal", 8000)
+    ex_goal = goals.get("exercise_minutes_goal", 30)
+
+    # 最新一天（今日面板）
+    latest = rows[0] if rows else {}
+    sleep = (latest.get("sleep_data") or {}) if latest else {}
+
+    this_week = rows[:7]
+    last_week = rows[7:14]
+
+    def _week_stats(wk):
+        if not wk:
+            return {"workout_days": 0, "total_burn": 0, "avg_sleep": None,
+                    "avg_steps": None, "ex_rate": 0, "score": None}
+        workout_days = sum(1 for r in wk if (r.get("exercise_minutes") or 0) >= ex_goal)
+        total_burn = sum(r.get("calories_burned") or 0 for r in wk)
+        avg_sleep = _avg([(r.get("sleep_data") or {}).get("sleep_score") for r in wk])
+        avg_steps = _avg([r.get("steps") for r in wk])
+        sum_ex = sum(r.get("exercise_minutes") or 0 for r in wk)
+        ex_rate = min(100, round(sum_ex / (ex_goal * 7) * 100)) if ex_goal else 0
+        avg_rhr = _avg([r.get("heart_rate_rest") for r in wk]) or 60
+        score = round(0.45 * (avg_sleep or 70) + 0.30 * ex_rate
+                      + 0.25 * max(0, min(100, 100 - (avg_rhr - 50) * 2)))
+        return {"workout_days": workout_days, "total_burn": total_burn,
+                "avg_sleep": avg_sleep, "avg_steps": avg_steps, "ex_rate": ex_rate, "score": score}
+
+    tw, lw = _week_stats(this_week), _week_stats(last_week)
+
+    weight = profile.get("weight_kg")
+    bmi = tools.calc_bmi(weight, profile.get("height_cm", 175)) if weight else None
+    bmr = tools.calc_bmr(weight, profile.get("height_cm", 175),
+                         profile.get("age", 30), profile.get("gender", "male")) if weight else None
+
+    # 最新营养
+    nut = _query_one(
+        "SELECT nutrition_result, balance_score FROM nutrition_logs "
+        "WHERE user_id = %s ORDER BY date DESC LIMIT 1", (user_id,))
+    nr = (nut or {}).get("nutrition_result") or {}
+    total_cal = nr.get("total_calories")
+    p, c, f = nr.get("protein_g"), nr.get("carbs_g"), nr.get("fat_g")
+    macro_cal = (p or 0) * 4 + (c or 0) * 4 + (f or 0) * 9
+    ratios = ({"protein": round((p or 0) * 4 / macro_cal * 100), "carbs": round((c or 0) * 4 / macro_cal * 100),
+               "fat": round((f or 0) * 9 / macro_cal * 100)} if macro_cal else {})
+
+    score = tw["score"]
+    status = "活力充沛" if (score or 0) >= 80 else ("状态平稳" if (score or 0) >= 60 else "需要恢复")
+    risk = "低风险" if (score or 0) >= 75 else ("中风险" if (score or 0) >= 55 else "偏高风险")
+
+    return {
+        "kpi": {
+            "health_score": score,
+            "score_delta_vs_last_week": (score - lw["score"]) if (score is not None and lw["score"] is not None) else None,
+            "status": status,
+            "exercise_rate": tw["ex_rate"],
+            "exercise_rate_delta": tw["ex_rate"] - lw["ex_rate"] if last_week else None,
+            "risk": risk,
+        },
+        "body_overview": {
+            "heart_rate": latest.get("heart_rate_avg") or latest.get("heart_rate_rest"),
+            "weight_kg": weight, "bmi": bmi, "bmr": bmr,
+            "body_fat_pct": profile.get("body_fat_pct"),
+            "muscle_mass_kg": profile.get("muscle_mass_kg"),
+            "update_date": str(latest.get("date")) if latest else None,
+        },
+        "sleep": {
+            "score": sleep.get("sleep_score"), "total_hours": sleep.get("total_hours"),
+            "deep_sleep_percent": sleep.get("deep_sleep_percent"),
+            "rem_sleep_percent": sleep.get("rem_sleep_percent"),
+            "stages_timeline": sleep.get("stages_timeline", []),
+        },
+        "nutrition": {
+            "total_calories": total_cal, "protein_g": p, "carbs_g": c, "fat_g": f,
+            "ratios": ratios, "balance_score": (nut or {}).get("balance_score"),
+        },
+        "exercise_today": {
+            "steps": latest.get("steps"), "steps_goal": steps_goal,
+            "duration_minutes": latest.get("exercise_minutes"),
+            "calories_burned": latest.get("calories_burned"),
+            "intensity": "高" if (latest.get("exercise_minutes") or 0) >= 60 else
+                         ("中等" if (latest.get("exercise_minutes") or 0) >= 25 else "低"),
+        },
+        "week_summary": {
+            "workout_days": tw["workout_days"], "days_goal": goals.get("exercise_days_goal", 7),
+            "total_calories_burned": tw["total_burn"],
+            "avg_steps": tw["avg_steps"], "avg_sleep": tw["avg_sleep"],
+        },
+        "goals": goals,
+    }
