@@ -9,20 +9,20 @@ trigger:
   event:
     - custom
 
+clone:
+  retries: 3
+
 steps:
   - name: build-backend
     image: plugins/docker
-
     settings:
       registry: registry.cn-shanghai.aliyuncs.com
       repo: registry.cn-shanghai.aliyuncs.com/sh-cloud/hpu-backend
       context: backend
       dockerfile: backend/Dockerfile
-
       tags:
         - latest
         - ${DRONE_COMMIT_SHA}
-
       username:
         from_secret: aliyun_registry_username
       password:
@@ -30,18 +30,32 @@ steps:
 
   - name: build-frontend
     image: plugins/docker
-
     settings:
       registry: registry.cn-shanghai.aliyuncs.com
       repo: registry.cn-shanghai.aliyuncs.com/sh-cloud/hpu-frontend
       context: frontend
       dockerfile: frontend/Dockerfile
-
       tags:
         - latest
         - ${DRONE_COMMIT_SHA}
-
       username:
         from_secret: aliyun_registry_username
       password:
         from_secret: aliyun_registry_password
+
+  - name: deploy
+    image: appleboy/drone-ssh
+    settings:
+      host:
+        from_secret: deploy_host
+      username:
+        from_secret: deploy_user
+      key:
+        from_secret: deploy_ssh_key
+      port: 22
+      script:
+        - cd /data/hpu
+        - ./deploy.sh ${DRONE_COMMIT_SHA} ${DRONE_COMMIT_SHA}
+    depends_on:
+      - build-backend
+      - build-frontend
