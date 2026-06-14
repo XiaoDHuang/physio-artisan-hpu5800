@@ -29,7 +29,7 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **THEN** `nutrition.energy` 含 `total_calories`、`macros`(carbs/protein/fat 各含 grams/calories/percent)、`recommended_calories`、`bmr`、`exercise_burn`、`energy_gap`
 - **AND** `bmr`/`energy_gap`/`macros.*.percent` 在 `sources` 标为 `derived`
 
-### Requirement: 今日分餐饮食记录（结构 mock 兜底）
+### Requirement: 今日分餐饮食记录
 系统 SHALL 按餐别（早餐/午餐/晚餐/加餐）返回当日饮食记录，每餐含时间、合计热量与食物明细（名称、克数、单品热量）。第三层换源后：餐次骨架与每餐汇总取自 `nutrition_logs.meal_breakdown`，食物明细取自 `nutrition_logs.recognized_foods`（结构化数组按 `meal` 分组），`sources` 标 `db`；当无结构化数据时回退 mock 并标 `mock`。食材名对齐前端图标集。
 
 #### Scenario: 返回真实分餐与单品

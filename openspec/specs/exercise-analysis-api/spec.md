@@ -23,7 +23,7 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **THEN** `exercise.today_status` 含 `diet`(等级+已摄入/目标)、`sleep`(等级+时长)、`fatigue`(等级+建议)
 - **AND** `fatigue` 等级在 `sources` 标为 `derived`
 
-### Requirement: 今日运动记录（部分字段 mock）
+### Requirement: 今日运动记录
 系统 SHALL 返回当日多条运动记录，每条含运动类型、时长、消耗、时间段、距离。第三层换源后：时长/消耗优先取 `exercise_records` 结构化列（`actual_duration_min`/`calories_burned`，缺失回退 `analysis_result` 同义键）；时间段取 `start_time`–`end_time`、距离取 `distance_km`（新列），`sources` 标 `db`；当列为空时回退 mock 并标 `mock`。
 
 #### Scenario: 存在当日运动记录（真实列）
@@ -41,7 +41,7 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **WHEN** 调用 `GET /exercise/{uid}`
 - **THEN** `exercise.week_trend` 返回最多 7 个数据点（`date`+`steps`）并附 `steps_goal`
 
-### Requirement: 今日运动建议与成就（mock 兜底）
+### Requirement: 今日运动建议与成就
 系统 SHALL 返回运动/饮食/睡眠三段建议文本与"成就"信息。第三层换源后：建议优先取 `user_plans`（`training_plan.reason` / `sleep_plan` / `diet_plan.notes`，无则规则派生，标 `derived`）；成就 `percentile` 由跨用户综合分排名聚合查询得出（标 `derived`），无多用户数据时回退 mock。
 
 #### Scenario: 建议来自计划、成就来自聚合

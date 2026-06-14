@@ -37,7 +37,7 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **WHEN** 调用 `GET /sleep/{uid}?range=14d`
 - **THEN** `sleep.trend` 返回最多 14 个数据点
 
-### Requirement: 睡眠页个性化建议（mock 兜底）
+### Requirement: 睡眠页个性化建议
 系统 SHALL 返回睡眠/饮食/运动三类个性化建议文本，以及"推荐食物""避免食物"清单。第三层换源后：建议文本优先取自 `user_plans.sleep_plan.suggestions` / `training_plan.reason`（无计划则规则派生，标 `derived`）；食物清单改为对齐前端图标集的 curated 常量（香蕉/燕麦/鸡蛋/牛奶/坚果·咖啡/辛辣食物/油炸食品/甜点/奶茶），标 `default`。结构对前端稳定不变。
 
 #### Scenario: 建议来自计划表、食物来自配置
