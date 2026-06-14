@@ -24,15 +24,15 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **AND** `fatigue` 等级在 `sources` 标为 `derived`
 
 ### Requirement: 今日运动记录（部分字段 mock）
-系统 SHALL 返回当日多条运动记录，每条含运动类型、时长、消耗（取自 `exercise_records`）。当前表无字段的"时间段(起止)"与"距离(公里)" SHALL 由 mock 兜底并在 `sources` 标为 `mock`。
+系统 SHALL 返回当日多条运动记录，每条含运动类型、时长、消耗、时间段、距离。第三层换源后：时长/消耗优先取 `exercise_records` 结构化列（`actual_duration_min`/`calories_burned`，缺失回退 `analysis_result` 同义键）；时间段取 `start_time`–`end_time`、距离取 `distance_km`（新列），`sources` 标 `db`；当列为空时回退 mock 并标 `mock`。
 
-#### Scenario: 存在当日运动记录
-- **WHEN** 该用户当日 `exercise_records` 有一条或多条
-- **THEN** `exercise.today_records` 为数组，每项含 `exercise_type`、`duration_minutes`、`calories`（`db`）与 `time_range`、`distance_km`（`mock`）
+#### Scenario: 存在当日运动记录（真实列）
+- **WHEN** 该用户当日 `exercise_records` 有记录且填了起止时间/距离
+- **THEN** `today_records[]` 的 `time_range`/`distance_km`/`duration_minutes`/`calories` 取自真实列，`sources` 标 `db`
 
 #### Scenario: 当日无运动记录
 - **WHEN** 该用户当日无 `exercise_records`
-- **THEN** `exercise.today_records` 返回空数组（不报错）
+- **THEN** `today_records` 返回空数组（不报错）
 
 ### Requirement: 本周运动趋势
 系统 SHALL 返回近 7 天逐日步数序列与步数目标线，供前端绘制柱状趋势。
@@ -42,9 +42,13 @@ TBD - created by archiving change add-three-page-read-apis. Update Purpose after
 - **THEN** `exercise.week_trend` 返回最多 7 个数据点（`date`+`steps`）并附 `steps_goal`
 
 ### Requirement: 今日运动建议与成就（mock 兜底）
-系统 SHALL 返回运动/饮食/睡眠三段建议文本，以及"成就"信息（如超越用户百分位）。建议文本本期由规则/mock 产出；成就百分位需跨用户统计，本期为 mock。二者均在 `sources` 标为 `mock`。
+系统 SHALL 返回运动/饮食/睡眠三段建议文本与"成就"信息。第三层换源后：建议优先取 `user_plans`（`training_plan.reason` / `sleep_plan` / `diet_plan.notes`，无则规则派生，标 `derived`）；成就 `percentile` 由跨用户综合分排名聚合查询得出（标 `derived`），无多用户数据时回退 mock。
 
-#### Scenario: 返回建议与成就
-- **WHEN** 调用 `GET /exercise/{uid}`
-- **THEN** `exercise.advice` 含 `exercise`/`nutrition`/`sleep` 三段文本，`exercise.achievement` 含 `percentile` 与文案，均标为 `mock`
+#### Scenario: 建议来自计划、成就来自聚合
+- **WHEN** 调用 `GET /exercise/{uid}` 且存在 `user_plans` 与多用户数据
+- **THEN** `advice.*` 取自计划（`sources` 标 `db`/`derived`），`achievement.percentile` 为跨用户排名（`sources` 标 `derived`）
+
+#### Scenario: 数据不足回退
+- **WHEN** 无计划或仅单用户
+- **THEN** 建议规则派生、成就回退 mock，端点不报错
 

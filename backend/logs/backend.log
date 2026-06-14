@@ -90,3 +90,4 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-14 10:34:51 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分88): 今晚优先减少屏幕蓝光暴露。
 2026-06-14 10:34:51 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
 2026-06-14 10:34:55 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-14 18:24:25 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…

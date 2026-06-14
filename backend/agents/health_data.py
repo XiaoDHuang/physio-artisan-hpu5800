@@ -187,19 +187,24 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
     else:
         sources["baseline"] = "default"  # 由 health_tools 默认基线兜底
 
-    # --- 运动负荷：exercise_records.analysis_result(JSONB) ---
+    # --- 运动负荷：exercise_records（结构化列优先，回退 analysis_result）---
     ex_row = _query_one(
-        "SELECT analysis_result FROM exercise_records "
+        "SELECT actual_duration_min, peak_hr, hr_60s_after, actual_rpe, "
+        "calories_burned, analysis_result FROM exercise_records "
         "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
         (user_id,),
     )
     ex_data = (ex_row or {}).get("analysis_result") or {}
-    if ex_data:
+    if ex_row:
         exercise = {
-            "duration_minutes": ex_data.get("duration_minutes", scen["exercise"]["duration_minutes"]),
-            "peak_hr": ex_data.get("peak_hr", scen["exercise"]["peak_hr"]),
-            "hr_60s": ex_data.get("hr_60s", scen["exercise"]["hr_60s"]),
-            "rpe": ex_data.get("rpe", scen["exercise"]["rpe"]),
+            "duration_minutes": _pick(ex_row.get("actual_duration_min"), ex_data.get("duration_minutes"),
+                                       scen["exercise"]["duration_minutes"]),
+            "peak_hr": _pick(ex_row.get("peak_hr"), ex_data.get("peak_hr"),
+                              scen["exercise"]["peak_hr"]),
+            "hr_60s": _pick(ex_row.get("hr_60s_after"), ex_data.get("hr_60s"),
+                             scen["exercise"]["hr_60s"]),
+            "rpe": _pick(ex_row.get("actual_rpe"), ex_data.get("rpe"),
+                          scen["exercise"]["rpe"]),
         }
         sources["exercise"] = "db"
     else:
@@ -208,15 +213,18 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
 
     # --- 饮食描述：nutrition_logs(recognized_foods/nutrition_result JSONB) ---
     nut_row = _query_one(
-        "SELECT recognized_foods, nutrition_result FROM nutrition_logs "
+        "SELECT recognized_foods, nutrition_result, total_calories_actual, "
+        "narrative FROM nutrition_logs "
         "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
         (user_id,),
     )
     diet_narrative = None
     if nut_row:
+        # 优先取 narrative 结构化列，回退 nutrition_result.diet_narrative / recognized_foods
         nr = nut_row.get("nutrition_result") or {}
         rf = nut_row.get("recognized_foods")
-        diet_narrative = nr.get("diet_narrative") if isinstance(nr, dict) else None
+        narrative_col = nut_row.get("narrative")
+        diet_narrative = narrative_col or nr.get("diet_narrative") if isinstance(nr, dict) else None
         if not diet_narrative and rf:
             diet_narrative = "，".join(map(str, rf)) if isinstance(rf, list) else str(rf)
     if diet_narrative:
@@ -225,12 +233,13 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
         diet_narrative = scen["diet"]["diet_narrative"]
         sources["diet"] = "mock"
 
-    # --- 身体测量：users.weight_kg；body_fat_pct 库内缺列，回退 mock ---
+    # --- 身体测量：users.weight_kg；body_fat_pct 现已接入结构化列 ---
     profile = get_user_profile(user_id)
     weight_kg = profile.get("weight_kg") or scen["body"]["weight_kg"]
-    body_fat_pct = scen["body"]["body_fat_pct"]  # 库无该列, 始终回退 mock
-    # body 来源以体重(来自 users 画像)的真实来源为准; body_fat 恒为 mock
-    sources["body"] = profile.get("_source", "mock") if profile.get("weight_kg") else "mock"
+    body_fat_pct = profile.get("body_fat_pct") or scen["body"]["body_fat_pct"]
+    # body 来源以体重/体脂的真实来源为准
+    src_body = profile.get("_source", "mock")
+    sources["body"] = src_body if profile.get("weight_kg") else "mock"
 
     return {
         # 穿戴
@@ -314,8 +323,17 @@ def _avg(vals):
 # =============================================================================
 
 def _mark(sources: Dict[str, str], field: str, src: str) -> None:
-    """在 sources 字典内标记某字段来源（db / mock / derived）。"""
+    """在 sources 字典内标记某字段来源（db / mock / derived / default）。"""
     sources[field] = src
+
+
+def _pick(col_val, jsonb_get, default=None):
+    """回退助手：优先结构化列，缺失回退旧 JSONB 镜像同义键，再无则用 default。"""
+    if col_val is not None:
+        return col_val
+    if jsonb_get is not None:
+        return jsonb_get
+    return default
 
 
 def _get_goals(profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -382,10 +400,6 @@ _MOCK_SLEEP_ADVICE = {
     "nutrition": "晚餐避免高脂高糖食物，可选择富含色氨酸的食物如香蕉、燕麦、温牛奶，有助于促进睡眠。",
     "exercise": "下午进行中等强度有氧运动有助于加深夜间睡眠，但睡前2小时内避免剧烈运动。",
 }
-_MOCK_SLEEP_FOODS = {
-    "recommended": ["香蕉", "温牛奶", "燕麦", "杏仁", "蜂蜜", "全麦面包"],
-    "avoid": ["咖啡", "浓茶", "辛辣食物", "酒精", "碳酸饮料", "巧克力"],
-}
 _MOCK_EXERCISE_ADVICE = {
     "exercise": "今日建议进行中等强度有氧运动30-45分钟，保持心率在最大心率的60-70%区间。运动后充分拉伸。",
     "nutrition": "运动后30分钟内补充蛋白质和碳水，比例建议1:3。多喝水补充电解质。",
@@ -430,7 +444,7 @@ def _status_range(value: Optional[float], lo: float, hi: float,
 
 # -------- 2. 睡眠监测 --------
 def get_sleep_overview(user_id: int, range_days: int = 7) -> Dict[str, Any]:
-    """聚合睡眠监测页全部数据。
+    """聚合睡眠监测页全部数据（v3.1 结构化列 + sleep_log + user_plans）。
 
     Returns:
         {today: {sleep_score, grade, total_hours, deep_sleep_hours,
@@ -443,55 +457,83 @@ def get_sleep_overview(user_id: int, range_days: int = 7) -> Dict[str, Any]:
     """
     profile = get_user_profile(user_id)
     goals = _get_goals(profile)
-    raw_goals = profile.get("goals") or {}  # 原始 goals（不含缺省），用于 sources 判断
+    raw_goals = profile.get("goals") or {}
     sources: Dict[str, str] = {}
 
-    # P2-1: 取最新 sleep_data（ORDER BY date DESC LIMIT 1），不限定今天
+    # --- 优先 sleep_log 取 bedtime/wake_time，回退 watch_data ---
+    sleep_log = _query_one(
+        "SELECT bedtime_at, wake_time_at FROM sleep_log "
+        "WHERE user_id = %s ORDER BY sleep_date DESC LIMIT 1",
+        (user_id,),
+    )
+
+    # --- 取最新 watch_data 结构化列（回退 JSONB）---
     today_row = _query_one(
-        "SELECT sleep_data FROM watch_data "
+        "SELECT sleep_score, total_sleep_min, deep_sleep_min, nap_min, "
+        "actual_bedtime, actual_wake_time, sleep_data "
+        "FROM watch_data "
         "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
         (user_id,),
     )
     sd = (today_row.get("sleep_data") or {}) if today_row else {}
+    has_db = today_row is not None
 
-    # --- today 基础字段 ---
-    sleep_score = sd.get("sleep_score")
-    total_hours = sd.get("total_hours")
-    deep_sleep_percent = sd.get("deep_sleep_percent")
-    bedtime = sd.get("bedtime")
-    wake_time = sd.get("wake_time")
-    nap_minutes = sd.get("nap_minutes")
+    if has_db:
+        # 结构化列优先，回退 JSONB 镜像同义键
+        sleep_score = _pick(today_row.get("sleep_score"), sd.get("sleep_score"))
+        # P1: total_sleep_min 是分钟(÷60→小时), sleep_data.total_hours 已经是小时, 不可混入同一变量
+        tsm = today_row.get("total_sleep_min")
+        sd_hours = sd.get("total_hours")
+        if tsm is not None:
+            total_hours = round(tsm / 60, 1)
+        elif sd_hours is not None:
+            total_hours = sd_hours
+        else:
+            total_hours = None
+        # deep_sleep: deep_sleep_min/60, 回退 deep_sleep_percent × total_hours
+        dsm = today_row.get("deep_sleep_min")
+        sd_deep_min = sd.get("deep_sleep_min")
+        deep_sleep_pct = sd.get("deep_sleep_percent")
+        if dsm is not None:
+            deep_sleep_hours = round(dsm / 60, 1)
+        elif sd_deep_min is not None:
+            deep_sleep_hours = round(sd_deep_min / 60, 1)
+        elif deep_sleep_pct is not None and total_hours is not None:
+            deep_sleep_hours = round(deep_sleep_pct / 100 * total_hours, 1)
+        else:
+            deep_sleep_hours = None
+        nap_minutes = _pick(today_row.get("nap_min"), sd.get("nap_minutes"))
+        # bedtime/wake: sleep_log > watch_data 结构化列 > JSONB 镜像
+        if sleep_log:
+            bed_dt = sleep_log.get("bedtime_at")
+            wake_dt = sleep_log.get("wake_time_at")
+            bedtime = bed_dt.strftime("%H:%M") if hasattr(bed_dt, 'strftime') else str(bed_dt)[:5] if bed_dt else None
+            wake_time = wake_dt.strftime("%H:%M") if hasattr(wake_dt, 'strftime') else str(wake_dt)[:5] if wake_dt else None
+        else:
+            bedtime = _pick(today_row.get("actual_bedtime"), sd.get("bedtime"))
+            wake_time = _pick(today_row.get("actual_wake_time"), sd.get("wake_time"))
 
-    has_db = today_row is not None and bool(sd)
-
-    if not has_db:
-        # 完全无今日数据 → mock 回退
+        _mark(sources, "sleep_score", "db")
+        _mark(sources, "total_hours", "db")
+        _mark(sources, "deep_sleep_hours", "derived")
+        _mark(sources, "nap_minutes", "db" if nap_minutes is not None else "mock")
+        _mark(sources, "bedtime", "db")
+        _mark(sources, "wake_time", "db")
+    else:
         sleep_score = _MOCK_SLEEP_TODAY["sleep_score"]
         total_hours = _MOCK_SLEEP_TODAY["total_hours"]
-        deep_sleep_percent = _MOCK_SLEEP_TODAY["deep_sleep_percent"]
+        deep_sleep_hours = _MOCK_SLEEP_TODAY["deep_sleep_percent"] / 100 * total_hours if total_hours else None
         nap_minutes = _MOCK_SLEEP_TODAY["nap_minutes"]
         bedtime = _MOCK_SLEEP_TODAY["bedtime"]
         wake_time = _MOCK_SLEEP_TODAY["wake_time"]
         _mark(sources, "sleep_score", "mock")
         _mark(sources, "total_hours", "mock")
+        _mark(sources, "deep_sleep_hours", "derived")
         _mark(sources, "nap_minutes", "mock")
         _mark(sources, "bedtime", "mock")
         _mark(sources, "wake_time", "mock")
-    else:
-        _mark(sources, "sleep_score", "db")
-        _mark(sources, "total_hours", "db")
-        _mark(sources, "nap_minutes", "db" if nap_minutes is not None else "mock")
-        _mark(sources, "bedtime", "db" if bedtime else "mock")
-        _mark(sources, "wake_time", "db" if wake_time else "mock")
 
-    # --- derived 字段 ---
-    deep_sleep_hours = (
-        round(deep_sleep_percent / 100 * total_hours, 1)
-        if deep_sleep_percent is not None and total_hours is not None
-        else None
-    )
     grade = _grade_sleep(sleep_score)
-    _mark(sources, "deep_sleep_hours", "derived")
     _mark(sources, "grade", "derived")
 
     d_lo, d_hi = goals["sleep_recommend_min"], goals["sleep_recommend_max"]
@@ -505,72 +547,92 @@ def get_sleep_overview(user_id: int, range_days: int = 7) -> Dict[str, Any]:
     _mark(sources, "nap.recommend_min", "db" if raw_goals.get("nap_recommend_min") else "default")
     _mark(sources, "nap.recommend_max", "db" if raw_goals.get("nap_recommend_max") else "default")
 
-    # --- trend ---
+    # --- trend（从 watch_data 历史取结构化列 / JSONB）---
     rows = _get_watch_sequence(user_id, range_days)
     trend = []
     for r in reversed(rows):
         s = r.get("sleep_data") or {}
-        sc = s.get("sleep_score")
-        th = s.get("total_hours")
+        sc = _pick(r.get("sleep_score"), s.get("sleep_score"))
+        th_raw = s.get("total_hours")
+        tsm = r.get("total_sleep_min")
+        th = round(tsm / 60, 1) if tsm else th_raw
         if sc is not None or th is not None:
-            trend.append({
-                "date": str(r["date"]),
-                "total_hours": th,
-                "sleep_score": sc,
-            })
+            trend.append({"date": str(r["date"]), "total_hours": th, "sleep_score": sc})
     _mark(sources, "trend", "db" if trend else "mock")
 
-    # --- advice & foods (mock) ---
-    _mark(sources, "advice.sleep", "mock")
-    _mark(sources, "advice.nutrition", "mock")
-    _mark(sources, "advice.exercise", "mock")
-    _mark(sources, "foods.recommended", "mock")
-    _mark(sources, "foods.avoid", "mock")
+    # --- advice: user_plans → 规则兜底 ---
+    plan = _query_one(
+        "SELECT sleep_plan, training_plan FROM user_plans "
+        "WHERE user_id = %s ORDER BY plan_date DESC LIMIT 1",
+        (user_id,),
+    )
+    if plan:
+        sp = plan.get("sleep_plan") or {}
+        tp = plan.get("training_plan") or {}
+        suggestions = sp.get("suggestions") or []
+        sleep_advice = "；".join(s.get("title", "") for s in suggestions) if suggestions else _MOCK_SLEEP_ADVICE["sleep"]
+        exercise_advice = tp.get("reason") or _MOCK_SLEEP_ADVICE["exercise"]
+        _mark(sources, "advice.sleep", "derived" if suggestions else "default")
+        _mark(sources, "advice.nutrition", "default")
+        _mark(sources, "advice.exercise", "derived" if tp.get("reason") else "default")
+    else:
+        sleep_advice = _MOCK_SLEEP_ADVICE["sleep"]
+        exercise_advice = _MOCK_SLEEP_ADVICE["exercise"]
+        _mark(sources, "advice.sleep", "mock")
+        _mark(sources, "advice.nutrition", "mock")
+        _mark(sources, "advice.exercise", "mock")
+    nutrition_advice = "晚餐避免高脂高糖食物，可选择富含色氨酸的食物如香蕉、燕麦、温牛奶，有助于促进睡眠。"
 
-    sleep = {
-        "today": {
-            "sleep_score": sleep_score,
-            "grade": grade,
-            "total_hours": total_hours,
-            "deep_sleep_hours": deep_sleep_hours,
-            "nap_minutes": nap_minutes,
-            "bedtime": bedtime,
-            "wake_time": wake_time,
+    # --- foods: curated 常量（对齐前端图标集），标 default ---
+    _CURATED_RECOMMENDED = ["香蕉", "燕麦", "牛奶", "鸡蛋", "坚果"]
+    _CURATED_AVOID = ["咖啡", "辛辣食物", "油炸食品", "甜点", "奶茶"]
+    _mark(sources, "foods.recommended", "default")
+    _mark(sources, "foods.avoid", "default")
+
+    return {
+        "user_id": user_id,
+        "sleep": {
+            "today": {
+                "sleep_score": sleep_score,
+                "grade": grade,
+                "total_hours": total_hours,
+                "deep_sleep_hours": deep_sleep_hours,
+                "nap_minutes": nap_minutes,
+                "bedtime": bedtime,
+                "wake_time": wake_time,
+            },
+            "duration": {"status": duration_status, "recommend_min": d_lo, "recommend_max": d_hi},
+            "nap": {"status": nap_status, "recommend_min": n_lo, "recommend_max": n_hi},
+            "trend": trend,
+            "advice": {
+                "sleep": sleep_advice,
+                "nutrition": nutrition_advice,
+                "exercise": exercise_advice,
+            },
+            "foods": {"recommended": list(_CURATED_RECOMMENDED), "avoid": list(_CURATED_AVOID)},
         },
-        "duration": {
-            "status": duration_status,
-            "recommend_min": d_lo,
-            "recommend_max": d_hi,
-        },
-        "nap": {
-            "status": nap_status,
-            "recommend_min": n_lo,
-            "recommend_max": n_hi,
-        },
-        "trend": trend,
-        "advice": dict(_MOCK_SLEEP_ADVICE),
-        "foods": dict(_MOCK_SLEEP_FOODS),
+        "sources": sources,
     }
-    return {"user_id": user_id, "sleep": sleep, "sources": sources}
 
 
 def save_sleep_entry(uid: int, bedtime: str, wake_time: str,
                      nap_minutes: Optional[int] = None,
                      on_date: Optional[str] = None) -> Dict[str, Any]:
-    """写入一条睡眠记录（upsert 到 watch_data.sleep_data JSONB）。
+    """写入一条睡眠记录（真值源：sleep_log，回灌 watch_data）。
 
     Args:
         uid: 用户 ID
         bedtime: ISO 格式入睡时间，如 "2026-06-01T23:20"
         wake_time: ISO 格式起床时间，如 "2026-06-02T07:20"
         nap_minutes: 可选小憩分钟数
-        on_date: 日期字符串 YYYY-MM-DD，默认今天
+        on_date: 睡眠日期字符串 YYYY-MM-DD，默认今天（起床日）
 
     Returns:
         {"saved": bool, "sleep_data": {...}}
 
     Raises:
-        ValueError: bedtime 或 wake_time 不是合法 ISO 时间字符串
+        ValueError: bedtime 或 wake_time 不是合法 ISO 时间字符串；
+            或起床时间不晚于入睡时间
     """
     import json
     from datetime import datetime
@@ -578,39 +640,64 @@ def save_sleep_entry(uid: int, bedtime: str, wake_time: str,
     on_date = on_date or datetime.now().strftime("%Y-%m-%d")
     b = datetime.fromisoformat(bedtime)
     w = datetime.fromisoformat(wake_time)
+    if w <= b:
+        raise ValueError(f"起床时间 ({wake_time}) 必须晚于入睡时间 ({bedtime})")
     total_hours = round((w - b).total_seconds() / 3600, 1)
-    if total_hours < 0:
-        total_hours += 24  # 跨午夜
+    sleep_date = on_date  # sleep_log 的 sleep_date = 起床日
 
-    sleep_data: Dict[str, Any] = {
+    # 1) sleep_log upsert（真值源）
+    log_ok = _execute_write(
+        """INSERT INTO sleep_log (user_id, sleep_date, bedtime_at, wake_time_at, source)
+           VALUES (%s, %s, %s, %s, 'user_input')
+           ON CONFLICT (user_id, sleep_date) DO UPDATE SET
+               bedtime_at=EXCLUDED.bedtime_at, wake_time_at=EXCLUDED.wake_time_at,
+               updated_at=CURRENT_TIMESTAMP""",
+        (uid, sleep_date, b, w),
+    )
+    if not log_ok:
+        return {"saved": False, "sleep_data": {}}
+
+    # 2) 回灌 watch_data（actual_bedtime/actual_wake_time/nap_min + sleep_data 镜像）
+    sleep_data = {
         "bedtime": bedtime,
         "wake_time": wake_time,
         "total_hours": total_hours,
     }
     if nap_minutes is not None:
         sleep_data["nap_minutes"] = nap_minutes
+    actual_bed = b.strftime("%H:%M")
+    actual_wake = w.strftime("%H:%M")
+    total_sleep_min = int(round((w - b).total_seconds() / 60))
 
     existing = _query_one(
         "SELECT id FROM watch_data WHERE user_id = %s AND date = %s",
-        (uid, on_date),
+        (uid, sleep_date),
     )
     if existing:
-        ok = _execute_write(
-            "UPDATE watch_data SET sleep_data = COALESCE(sleep_data, '{}'::jsonb) || %s::jsonb "
-            "WHERE id = %s",
-            (json.dumps(sleep_data), existing["id"]),
+        _execute_write(
+            """UPDATE watch_data SET
+                actual_bedtime=%s, actual_wake_time=%s,
+                total_sleep_min=COALESCE(total_sleep_min, %s),
+                nap_min=COALESCE(nap_min, %s),
+                sleep_data = COALESCE(sleep_data, '{}'::jsonb) || %s::jsonb
+               WHERE id=%s""",
+            (actual_bed, actual_wake, total_sleep_min, nap_minutes or 0,
+             json.dumps(sleep_data), existing["id"]),
         )
     else:
-        ok = _execute_write(
-            "INSERT INTO watch_data (user_id, date, sleep_data) VALUES (%s, %s, %s::jsonb)",
-            (uid, on_date, json.dumps(sleep_data)),
+        _execute_write(
+            """INSERT INTO watch_data (user_id, date, actual_bedtime, actual_wake_time,
+                total_sleep_min, nap_min, sleep_data)
+               VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)""",
+            (uid, sleep_date, actual_bed, actual_wake, total_sleep_min,
+             nap_minutes or 0, json.dumps(sleep_data)),
         )
-    return {"saved": ok, "sleep_data": sleep_data}
+    return {"saved": True, "sleep_data": sleep_data}
 
 
 # -------- 3. 运动分析 --------
 def get_exercise_overview(user_id: int) -> Dict[str, Any]:
-    """聚合运动分析页全部数据。
+    """聚合运动分析页全部数据（v3.1 结构化列 + user_plans + 跨用户聚合）。
 
     Returns:
         {today_overview: {steps, calories_burned, duration_minutes, intensity, goals},
@@ -628,10 +715,10 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
     sources: Dict[str, str] = {}
     today_str = date.today().isoformat()
 
-    # P2-1: 取最新一行，不限定今天
+    # --- 最新 watch_data ---
     today_row = _query_one(
         "SELECT date, steps, exercise_minutes, calories_burned, "
-        "heart_rate_avg, heart_rate_rest, hrv_data, sleep_data "
+        "heart_rate_avg, heart_rate_rest, hrv_data, sleep_data, sleep_score, total_sleep_min "
         "FROM watch_data WHERE user_id = %s ORDER BY date DESC LIMIT 1",
         (user_id,),
     )
@@ -666,21 +753,29 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
     # --- today_status ---
     # 饮食情况
     nut_row_today = _query_one(
-        "SELECT nutrition_result, balance_score FROM nutrition_logs "
+        "SELECT total_calories_actual, nutrition_result FROM nutrition_logs "
         "WHERE user_id = %s AND date = %s",
         (user_id, today_str),
     )
-    nr_today = (nut_row_today or {}).get("nutrition_result") or {}
-    intake_cal = nr_today.get("total_calories") or 0
+    if nut_row_today:
+        intake_cal = _pick(nut_row_today.get("total_calories_actual"),
+                           (nut_row_today.get("nutrition_result") or {}).get("total_calories"), 0)
+    else:
+        intake_cal = 0
     diet_status = "良好" if intake_cal >= goals["calorie_intake_target"] * 0.8 else "偏低"
     _mark(sources, "diet.status", "db" if nut_row_today else "mock")
     _mark(sources, "diet.intake", "db" if nut_row_today else "mock")
 
     # 睡眠情况
     sd_today = (today_row.get("sleep_data") or {}) if today_row else {}
-    sleep_score_today = sd_today.get("sleep_score")
+    if today_row:
+        sleep_score_today = _pick(today_row.get("sleep_score"), sd_today.get("sleep_score"))
+        sleep_hours_raw = today_row.get("total_sleep_min")
+        sleep_hours = round(sleep_hours_raw / 60, 1) if sleep_hours_raw else sd_today.get("total_hours", 7.0)
+    else:
+        sleep_score_today = None
+        sleep_hours = 7.0
     sleep_status = "良好" if (sleep_score_today or 0) >= 70 else ("一般" if (sleep_score_today or 0) >= 50 else "较差")
-    sleep_hours = sd_today.get("total_hours", 7.0)
     _mark(sources, "sleep.status", "db" if (today_row and sd_today) else "mock")
     _mark(sources, "sleep.hours", "db" if (today_row and sd_today) else "mock")
 
@@ -699,33 +794,51 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
     _mark(sources, "fatigue.level", "derived")
     _mark(sources, "fatigue.advice", "derived")
 
-    # --- today_records ---
+    # --- today_records（结构化列优先，回退 analysis_result；start/end/distance_km 现已可查 db）---
     today_records_db = _query_all(
-        "SELECT analysis_result FROM exercise_records "
+        "SELECT exercise_type, actual_duration_min, calories_burned, "
+        "start_time, end_time, distance_km, analysis_result "
+        "FROM exercise_records "
         "WHERE user_id = %s AND date = %s ORDER BY id",
         (user_id, today_str),
     )
-    _MOCK_RECORD_TIME_RANGES = ["07:00-07:30", "12:00-12:30", "18:30-19:00", "20:00-20:45"]
-    _MOCK_RECORD_DISTANCES = [3.0, 2.0, 4.5, 5.0]
     today_records = []
     for idx, er in enumerate(today_records_db):
         ar = er.get("analysis_result") or {}
-        mock_idx = min(idx, len(_MOCK_RECORD_TIME_RANGES) - 1)
+        dur = _pick(er.get("actual_duration_min"), ar.get("duration_minutes"), 30)
+        cal = _pick(er.get("calories_burned"), ar.get("calories"), 200)
+        st = er.get("start_time")
+        et = er.get("end_time")
+        dst = er.get("distance_km")
+        # 拼接 time_range
+        if st and et:
+            st_s = st.strftime("%H:%M") if hasattr(st, 'strftime') else str(st)[:5]
+            et_s = et.strftime("%H:%M") if hasattr(et, 'strftime') else str(et)[:5]
+            time_range = f"{st_s}-{et_s}"
+        else:
+            time_range = ar.get("time_range", "07:00-07:30")
+            _mark(sources, f"records.{idx+1}.time_range", "mock")
+        # distance_km
+        if dst is not None:
+            distance_km = float(dst) if not isinstance(dst, (float, int)) else dst
+            _mark(sources, f"records.{idx+1}.distance_km", "db")
+        else:
+            distance_km = ar.get("distance_km", 3.0)
+            _mark(sources, f"records.{idx+1}.distance_km", "mock")
+
         record = {
-            "exercise_type": ar.get("exercise_type", "未知运动"),
-            "duration_minutes": ar.get("duration_minutes", 30),
-            "calories": ar.get("calories", 200),
-            "time_range": ar.get("time_range", _MOCK_RECORD_TIME_RANGES[mock_idx]),
-            "distance_km": ar.get("distance_km", _MOCK_RECORD_DISTANCES[mock_idx]),
+            "exercise_type": er.get("exercise_type") or ar.get("exercise_type", "未知运动"),
+            "duration_minutes": dur,
+            "calories": cal,
+            "time_range": time_range,
+            "distance_km": distance_km,
         }
         today_records.append(record)
-        _mark(sources, f"records.{len(today_records)}.exercise_type", "db")
-        _mark(sources, f"records.{len(today_records)}.duration_minutes", "db")
-        _mark(sources, f"records.{len(today_records)}.calories", "db")
-        _mark(sources, f"records.{len(today_records)}.time_range", "mock")
-        _mark(sources, f"records.{len(today_records)}.distance_km", "mock")
+        _mark(sources, f"records.{idx+1}.exercise_type", "db")
+        _mark(sources, f"records.{idx+1}.duration_minutes", "db")
+        _mark(sources, f"records.{idx+1}.calories", "db")
     if not today_records:
-        _mark(sources, "today_records", "db")  # 空数组也来自 db（表有数据只是当天无记录）
+        _mark(sources, "today_records", "db")
 
     # --- week_trend ---
     week_rows = _get_watch_sequence(user_id, 7)
@@ -735,11 +848,69 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
     ]
     _mark(sources, "week_trend", "db" if week_trend else "mock")
 
-    # --- advice & achievement (mock) ---
-    _mark(sources, "advice.exercise", "mock")
-    _mark(sources, "advice.nutrition", "mock")
-    _mark(sources, "advice.sleep", "mock")
-    _mark(sources, "achievement.percentile", "mock")
+    # --- advice: user_plans → 规则兜底 ---
+    plan = _query_one(
+        "SELECT training_plan, sleep_plan, diet_plan FROM user_plans "
+        "WHERE user_id = %s ORDER BY plan_date DESC LIMIT 1",
+        (user_id,),
+    )
+    if plan:
+        tp = plan.get("training_plan") or {}
+        sp = plan.get("sleep_plan") or {}
+        dp = plan.get("diet_plan") or {}
+        ex_adv = tp.get("reason") or _MOCK_EXERCISE_ADVICE["exercise"]
+        sleep_adv = "；".join(s.get("title", "") for s in (sp.get("suggestions") or [])) if sp.get("suggestions") else _MOCK_EXERCISE_ADVICE["sleep"]
+        nut_adv = dp.get("notes") or _MOCK_EXERCISE_ADVICE["nutrition"]
+        _mark(sources, "advice.exercise", "derived" if tp.get("reason") else "default")
+        _mark(sources, "advice.sleep", "derived" if sp.get("suggestions") else "default")
+        _mark(sources, "advice.nutrition", "derived" if dp.get("notes") else "default")
+    else:
+        ex_adv = _MOCK_EXERCISE_ADVICE["exercise"]
+        sleep_adv = _MOCK_EXERCISE_ADVICE["sleep"]
+        nut_adv = _MOCK_EXERCISE_ADVICE["nutrition"]
+        _mark(sources, "advice.exercise", "mock")
+        _mark(sources, "advice.sleep", "mock")
+        _mark(sources, "advice.nutrition", "mock")
+
+    # --- achievement.percentile: 跨用户 health_score 排名聚合（derived）---
+    percentile = None
+    try:
+        # sleep_score 列优先，回退 sleep_data->>'sleep_score' JSONB（seed 未填列）
+        _SS = "coalesce(w.sleep_score, (w.sleep_data->>'sleep_score')::int)"
+        all_scores = _query_all(
+            f"SELECT w3.hs FROM ("
+            "  SELECT w2.user_id,"
+            "    round(0.45 * coalesce(w2.avg_ss,70) + 0.30 * w2.ex_r + 0.25 * w2.rhr_s) AS hs"
+            "  FROM ("
+            "    SELECT w.user_id,"
+            f"      avg({_SS}) AS avg_ss,"
+            "      least(100::float, round(coalesce(sum(w.exercise_minutes),0) / (60.0*7) * 100)) AS ex_r,"
+            "      greatest(0::float, least(100::float, 100 - (coalesce(avg(w.heart_rate_rest),60) - 50) * 2)) AS rhr_s"
+            "    FROM watch_data w WHERE w.date >= CURRENT_DATE - 7"
+            "    GROUP BY w.user_id"
+            "  ) w2"
+            ") w3 ORDER BY w3.hs DESC", ()
+        )
+        if all_scores:
+            scores = [s["hs"] for s in all_scores if s.get("hs") is not None]
+            my_score_raw = _query_one(
+                f"SELECT 0.45 * coalesce(avg({_SS}),70)"
+                " + 0.30 * least(100::float, round(coalesce(sum(w.exercise_minutes),0) / (60.0*7)*100))"
+                " + 0.25 * greatest(0::float, least(100::float, 100 - (coalesce(avg(w.heart_rate_rest),60)-50)*2)) AS hs"
+                " FROM watch_data w WHERE w.user_id=%s AND w.date >= CURRENT_DATE-7",
+                (user_id,),
+            )
+            my_score = (my_score_raw or {}).get("hs")
+            if my_score is not None and scores:
+                rank = sum(1 for s in scores if s > my_score) + 1
+                percentile = int(round((len(scores) - rank + 1) / len(scores) * 100))
+    except Exception:
+        pass
+    if percentile is not None:
+        _mark(sources, "achievement.percentile", "derived")
+    else:
+        percentile = 75
+        _mark(sources, "achievement.percentile", "mock")
     _mark(sources, "achievement.description", "mock")
 
     return {
@@ -762,10 +933,10 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
             },
             "today_records": today_records,
             "week_trend": week_trend,
-            "advice": dict(_MOCK_EXERCISE_ADVICE),
+            "advice": {"exercise": ex_adv, "nutrition": nut_adv, "sleep": sleep_adv},
             "achievement": {
-                "percentile": 75,
-                "description": "超越了75%的同龄健康用户",
+                "percentile": percentile,
+                "description": f"超越了{percentile}%的同龄健康用户",
             },
         },
         "sources": sources,
@@ -774,7 +945,7 @@ def get_exercise_overview(user_id: int) -> Dict[str, Any]:
 
 # -------- 4. 饮食管理 --------
 def get_nutrition_overview(user_id: int, on_date: Optional[str] = None) -> Dict[str, Any]:
-    """聚合饮食管理页全部数据。
+    """聚合饮食管理页全部数据（v3.1 结构化列 + recognized_foods + user_plans）。
 
     Args:
         user_id: 用户 ID
@@ -791,28 +962,40 @@ def get_nutrition_overview(user_id: int, on_date: Optional[str] = None) -> Dict[
     goals = _get_goals(profile)
     sources: Dict[str, str] = {}
 
-    # --- 当日 nutrition_logs ---
+    # --- 当日 nutrition_logs（结构化列优先，回退 JSONB）---
     nut_row = _query_one(
-        "SELECT nutrition_result, recognized_foods, balance_score "
+        "SELECT total_calories_actual, calories_remaining, protein_g, carbs_g, fat_g, "
+        "balance_score, recognized_foods, meal_breakdown, nutrition_result "
         "FROM nutrition_logs WHERE user_id = %s AND date = %s",
         (user_id, on_date),
     )
     nr = (nut_row.get("nutrition_result") or {}) if nut_row else {}
-    has_nut = nut_row is not None and bool(nr)
+    has_nut = nut_row is not None
 
-    intake_calories = nr.get("total_calories") if has_nut else 0
-    protein_g = nr.get("protein_g") if has_nut else 0
-    carbs_g = nr.get("carbs_g") if has_nut else 0
-    fat_g = nr.get("fat_g") if has_nut else 0
+    if has_nut:
+        intake_calories = _pick(nut_row.get("total_calories_actual"), nr.get("total_calories"), 0)
+        protein_g = _pick(nut_row.get("protein_g"), nr.get("protein_g"), 0)
+        carbs_g = _pick(nut_row.get("carbs_g"), nr.get("carbs_g"), 0)
+        fat_g = _pick(nut_row.get("fat_g"), nr.get("fat_g"), 0)
+        # remaining: 如果有结构化列 calories_remaining 则取，否则派生
+        calories_remaining_col = nut_row.get("calories_remaining")
+    else:
+        intake_calories = 0
+        protein_g = carbs_g = fat_g = 0
+        calories_remaining_col = None
 
     goal_cal = goals["calorie_intake_target"]
 
     # --- kpi ---
-    remaining_calories = max(0, goal_cal - (intake_calories or 0))
+    if has_nut and calories_remaining_col is not None:
+        remaining_calories = calories_remaining_col
+        _mark(sources, "kpi.remaining_calories", "db")
+    else:
+        remaining_calories = max(0, goal_cal - (intake_calories or 0))
+        _mark(sources, "kpi.remaining_calories", "derived")
     achievement_rate = round((intake_calories or 0) / goal_cal * 100, 1) if goal_cal else 0
     _mark(sources, "kpi.goal_calories", "db")
     _mark(sources, "kpi.intake_calories", "db" if has_nut else "mock")
-    _mark(sources, "kpi.remaining_calories", "derived")
     _mark(sources, "kpi.achievement_rate", "derived")
 
     # --- energy ---
@@ -858,48 +1041,93 @@ def get_nutrition_overview(user_id: int, on_date: Optional[str] = None) -> Dict[
     recommended_calories = goal_cal
     _mark(sources, "energy.recommended_calories", "db")
 
-    # energy_gap = 目标 − 已摄入（可为负，负=已超目标），与 kpi.remaining 同值语义
+    # energy_gap = 目标 − 已摄入（可为负）
     energy_gap = goal_cal - (intake_calories or 0)
     _mark(sources, "energy.energy_gap", "derived")
 
-    # --- meals (mock 兜底) ---
-    # 分餐与单品明细是结构缺口，本期 mock。四餐合计约 1445 kcal，
-    # 与 real energy.total_calories 的差值由第三层换源时消除（届时 meals 改为真实聚合）。
-    _MEALS_MOCK = [
-        {
-            "meal_type": "早餐", "time": "08:30", "total_calories": 271,
-            "foods": [{"name": "鸡蛋", "grams": 100, "calories": 155},
-                       {"name": "希腊酸奶", "grams": 150, "calories": 89},
-                       {"name": "蓝莓", "grams": 50, "calories": 29}],
-        },
-        {
-            "meal_type": "午餐", "time": "12:30", "total_calories": 523,
-            "foods": [{"name": "鸡胸肉", "grams": 150, "calories": 200},
-                       {"name": "糙米饭", "grams": 120, "calories": 148},
-                       {"name": "西兰花", "grams": 100, "calories": 34}],
-        },
-        {
-            "meal_type": "晚餐", "time": "18:30", "total_calories": 486,
-            "foods": [{"name": "三文鱼", "grams": 150, "calories": 312},
-                       {"name": "藜麦", "grams": 80, "calories": 96},
-                       {"name": "西兰花", "grams": 100, "calories": 34}],
-        },
-        {
-            "meal_type": "加餐", "time": "15:30", "total_calories": 165,
-            "foods": [{"name": "杏仁", "grams": 30, "calories": 173}],
-        },
-    ]
-    meals = list(_MEALS_MOCK)
-    # 如果有真实数据，餐别/日期标 db（但食物明细仍是 mock）
-    if has_nut:
+    # --- meals: recognized_foods + meal_breakdown（结构化）---
+    recognized = (nut_row.get("recognized_foods") or []) if has_nut else []
+    breakdown = (nut_row.get("meal_breakdown") or []) if has_nut else None
+    if recognized and breakdown:
+        # 以 meal_breakdown 为骨架，recognized_foods 按 meal 分组挂 foods
+        bd_map = {b["meal"]: b for b in breakdown if isinstance(b, dict)}
+        meals = []
+        for b in breakdown if isinstance(breakdown, list) else breakdown:
+            if not isinstance(b, dict):
+                continue
+            meal_name = b.get("meal", "")
+            meal_time = b.get("time", "12:00")
+            foods = [{
+                "name": f["name"], "grams": f["grams"], "calories": f["calories"]
+            } for f in recognized if isinstance(f, dict) and f.get("meal") == meal_name]
+            meals.append({
+                "meal_type": meal_name,
+                "time": meal_time,
+                "total_calories": int(b.get("calories", bd_map.get(meal_name, {}).get("calories", 0))),
+                "foods": foods,
+            })
         _mark(sources, "meals.*.meal_type", "db")
         _mark(sources, "meals.*.time", "db")
+        _mark(sources, "meals.*.foods", "db")
+    elif has_nut and breakdown:
+        # 有 breakdown 但无 recognized_foods：仅给出餐次汇总
+        meals = [{
+            "meal_type": b["meal"] if isinstance(b, dict) else "未知",
+            "time": b.get("time", "12:00") if isinstance(b, dict) else "12:00",
+            "total_calories": int(b.get("calories", 0)) if isinstance(b, dict) else 0,
+            "foods": [],
+        } for b in breakdown if isinstance(b, dict)]
+        _mark(sources, "meals.*.meal_type", "db")
+        _mark(sources, "meals.*.time", "db")
+        _mark(sources, "meals.*.foods", "mock")
     else:
+        # mock 兜底（无数据日）
+        _MEALS_MOCK = [
+            {"meal_type": "早餐", "time": "08:30", "total_calories": 271,
+             "foods": [{"name": "鸡蛋", "grams": 100, "calories": 155},
+                       {"name": "牛奶", "grams": 200, "calories": 108}]},
+            {"meal_type": "午餐", "time": "12:30", "total_calories": 523,
+             "foods": [{"name": "鸡胸肉", "grams": 150, "calories": 248},
+                       {"name": "西兰花", "grams": 100, "calories": 34}]},
+            {"meal_type": "晚餐", "time": "18:30", "total_calories": 486,
+             "foods": [{"name": "鸡胸肉", "grams": 120, "calories": 198},
+                       {"name": "牛奶", "grams": 150, "calories": 81}]},
+        ]
+        meals = list(_MEALS_MOCK)
         _mark(sources, "meals", "mock")
-    _mark(sources, "meals.*.foods", "mock")
+        _mark(sources, "meals.*.foods", "mock")
 
-    # --- exercise_advice (mock) ---
-    _mark(sources, "exercise_advice", "mock")
+    # --- exercise_advice: user_plans.training_plan → 规则兜底 ---
+    plan = _query_one(
+        "SELECT training_plan FROM user_plans "
+        "WHERE user_id = %s ORDER BY plan_date DESC LIMIT 1",
+        (user_id,),
+    )
+    if plan:
+        tp = plan.get("training_plan") or {}
+        exercises = tp.get("exercises") or _MOCK_NUTRITION_EXERCISE_ADVICE["exercises"]
+        # 保持 exercises 输出格式一致：name+(sets/reps 或 duration)
+        ex_list = []
+        for ex in exercises:
+            if isinstance(ex, dict):
+                item = {"name": ex.get("name", "训练")}
+                if ex.get("sets") and ex.get("reps"):
+                    item["sets"] = ex["sets"]
+                    item["reps"] = ex["reps"]
+                elif ex.get("duration"):
+                    item["duration"] = ex["duration"]
+                ex_list.append(item)
+        exercise_advice = {
+            "training_type": tp.get("training_type", "有氧训练"),
+            "duration": f"{tp.get('target_duration_min', 40)}-{tp.get('target_duration_min', 40) + 20}分钟"
+                        if tp.get("target_duration_min") else "40-60分钟",
+            "calorie_target": tp.get("target_total_kcal", 400),
+            "exercises": ex_list,
+        }
+        _mark(sources, "exercise_advice", "db")
+    else:
+        exercise_advice = dict(_MOCK_NUTRITION_EXERCISE_ADVICE)
+        _mark(sources, "exercise_advice", "mock")
 
     return {
         "user_id": user_id,
@@ -920,7 +1148,7 @@ def get_nutrition_overview(user_id: int, on_date: Optional[str] = None) -> Dict[
                 "energy_gap": energy_gap,
             },
             "meals": meals,
-            "exercise_advice": dict(_MOCK_NUTRITION_EXERCISE_ADVICE),
+            "exercise_advice": exercise_advice,
         },
         "sources": sources,
     }
