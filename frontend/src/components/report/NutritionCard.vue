@@ -1,7 +1,10 @@
 <script setup lang="ts">
+// 饮食监测：ECharts 环形(宏量占比) + 右侧图例 + 饮食均衡度
 import { computed } from 'vue'
+import type { EChartsOption } from 'echarts'
 import type { NutritionPanel } from '@/api/types'
 import SectionCard from './SectionCard.vue'
+import EChart from '@/components/common/EChart.vue'
 
 const props = defineProps<{ nutrition: NutritionPanel | null }>()
 
@@ -23,17 +26,17 @@ const segs = computed(() => {
   ]
 })
 
-const donutStyle = computed(() => {
-  let acc = 0
-  const stops = segs.value
-    .map((s) => {
-      const from = acc
-      acc += s.val
-      return `${s.color} ${from}% ${acc}%`
-    })
-    .join(', ')
-  return { background: `conic-gradient(${stops})` }
-})
+const option = computed<EChartsOption>(() => ({
+  series: [
+    {
+      type: 'pie',
+      radius: ['62%', '88%'],
+      silent: true,
+      label: { show: false },
+      data: segs.value.map((s) => ({ value: s.val, name: s.label, itemStyle: { color: s.color } })),
+    },
+  ],
+}))
 
 const balance = computed(() => props.nutrition?.balance_score ?? null)
 const balanceLabel = computed(() => {
@@ -45,8 +48,9 @@ const balanceLabel = computed(() => {
 <template>
   <SectionCard title="饮食监测" more>
     <div class="nutri-body">
-      <div class="donut" :style="donutStyle">
-        <div class="donut-inner">
+      <div class="donut">
+        <EChart :option="option" height="120px" />
+        <div class="center">
           <div class="kcal">{{ total ?? '—' }}<span class="unit">千卡</span></div>
           <div class="kcal-label">总摄入</div>
         </div>
@@ -70,26 +74,22 @@ const balanceLabel = computed(() => {
 .nutri-body {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 16px;
 }
 .donut {
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
+  position: relative;
+  width: 120px;
+  height: 120px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-.donut-inner {
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
-  background: #fff;
+.center {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 .kcal {
   font-size: 18px;
@@ -110,14 +110,14 @@ const balanceLabel = computed(() => {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .legend li {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
   color: var(--c-text-secondary);
 }

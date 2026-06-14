@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       // 前端统一走 /api，开发期由 Vite 代理到 FastAPI(8000)，规避跨域
       '/api': {
-        target: 'http://backend:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

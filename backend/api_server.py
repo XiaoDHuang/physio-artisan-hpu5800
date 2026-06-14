@@ -100,6 +100,38 @@ class ChatRequest(BaseModel):
     mode: Optional[str] = Field(default=None, description="可选：报告场景 control|experiment")
 
 
+class SleepEntryRequest(BaseModel):
+    bedtime: str = Field(..., description="入睡时间 ISO 格式，如 2026-06-01T23:20")
+    wake_time: str = Field(..., description="起床时间 ISO 格式，如 2026-06-02T07:20")
+    nap_minutes: Optional[int] = Field(default=None, description="小憩分钟数（可选）")
+    on_date: Optional[str] = Field(default=None, description="日期 YYYY-MM-DD，默认今天")
+    user_id: int = Field(default=1, description="用户 ID")
+
+
+class SleepEntryResponse(BaseModel):
+    saved: bool
+    sleep_data: Dict[str, Any]
+
+
+class SleepOverviewResponse(BaseModel):
+    user_id: int
+    sleep: Dict[str, Any]
+    sources: Dict[str, str]
+
+
+class ExerciseOverviewResponse(BaseModel):
+    user_id: int
+    exercise: Dict[str, Any]
+    sources: Dict[str, str]
+
+
+class NutritionOverviewResponse(BaseModel):
+    user_id: int
+    date: str
+    nutrition: Dict[str, Any]
+    sources: Dict[str, str]
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     intent: str = Field(..., description="report | data_entry | other")
@@ -361,6 +393,69 @@ async def get_dashboard(user_id: int):
     return {"user_id": user_id, "dashboard": data}
 
 
+# --------------------------- 三页只读 + 睡眠录入端点 ---------------------------
+
+
+@app.get("/sleep/{user_id}", response_model=SleepOverviewResponse)
+async def get_sleep(user_id: int, range: str = "7d"):
+    """睡眠监测页数据聚合。
+
+    Query:
+        range: 趋势天数，"7d" 或 "14d"，默认 7d
+
+    返回 sleep 对象 + sources 标注，字段说明见 docs/接口契约.md。
+    """
+    days = 14 if range.rstrip("dD") == "14" else 7
+    data = await asyncio.to_thread(hdata.get_sleep_overview, user_id, days)
+    return data
+
+
+@app.post("/sleep/entry", response_model=SleepEntryResponse)
+async def create_sleep_entry(req: SleepEntryRequest):
+    """手动录入睡眠记录（写入 watch_data.sleep_data JSONB）。
+
+    Body:
+        bedtime (必填): ISO 入睡时间
+        wake_time (必填): ISO 起床时间
+        nap_minutes (可选): 小憩分钟数
+        user_id (可选): 用户 ID，默认 1
+        on_date (可选): 日期，默认今天
+
+    无 DDL、无表创建；同日有行则合并更新 JSONB，无行则插入最小行。
+    """
+    try:
+        result = await asyncio.to_thread(
+            hdata.save_sleep_entry,
+            req.user_id, req.bedtime, req.wake_time, req.nap_minutes, req.on_date,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return SleepEntryResponse(saved=result["saved"], sleep_data=result["sleep_data"])
+
+
+@app.get("/exercise/{user_id}", response_model=ExerciseOverviewResponse)
+async def get_exercise(user_id: int):
+    """运动分析页数据聚合。
+
+    返回 exercise 对象 + sources 标注，字段说明见 docs/接口契约.md。
+    """
+    data = await asyncio.to_thread(hdata.get_exercise_overview, user_id)
+    return data
+
+
+@app.get("/nutrition/{user_id}", response_model=NutritionOverviewResponse)
+async def get_nutrition(user_id: int, date: Optional[str] = None):
+    """饮食管理页数据聚合。
+
+    Query:
+        date: 日期 YYYY-MM-DD，默认今天
+
+    返回 nutrition 对象 + sources 标注，字段说明见 docs/接口契约.md。
+    """
+    data = await asyncio.to_thread(hdata.get_nutrition_overview, user_id, date)
+    return data
+
+
 @app.get("/report/latest/{user_id}")
 async def get_latest_report(user_id: int):
     """查询某用户最近一次已生成的报告（读 ai_conversations 落库缓存，免重复跑工作流）。
@@ -428,6 +523,10 @@ async def root():
             "plan": "/plan - 一键生成健康报告",
             "status": "/status/{task_id} - 查询任务状态(报告一次性获取)",
             "dashboard": "/dashboard/{user_id} - 看板数据聚合(纯DB)",
+            "sleep": "/sleep/{user_id} - 睡眠监测页数据聚合(纯DB+mock)",
+            "exercise": "/exercise/{user_id} - 运动分析页数据聚合(纯DB+mock)",
+            "nutrition": "/nutrition/{user_id} - 饮食管理页数据聚合(纯DB+mock, 含date参数)",
+            "sleep_entry": "/sleep/entry - 手动录入睡眠记录(POST, 写watch_data JSONB)",
             "report_latest": "/report/latest/{user_id} - 最近一次报告(落库缓存)",
             "conversations": "/conversations - 会话历史",
             "docs": "/docs - API文档",
