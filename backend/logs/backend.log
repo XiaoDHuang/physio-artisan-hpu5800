@@ -79,3 +79,49 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-10 19:20:29 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
 2026-06-10 20:40:16 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
 2026-06-10 20:41:35 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 10:33:05 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 10:34:32 - api_server - INFO - [/chat 会话 4f93b2fb70064ecdb597668facf48447] 生成报告
+2026-06-14 10:34:37 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-14 10:34:37 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=402 疲劳红旗=1项 -> medium
+2026-06-14 10:34:40 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复评分很高，但静息心率已连续三天升高，这可能表明身体正在承受一定的压力或疲劳，建议适当调整训练强度并关注恢复状态。
+2026-06-14 10:34:40 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-14 10:34:44 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-14 10:34:49 - health_agents - INFO - [nutrition_planner] 目标热量=2300kcal 蛋白=130g 油脂代偿=否
+2026-06-14 10:34:51 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分88): 今晚优先减少屏幕蓝光暴露。
+2026-06-14 10:34:51 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-14 10:34:55 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-14 18:24:25 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:47:54 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:48:09 - api_server - INFO - [/plan] 创建任务 1c6367ec-d41d-4d0a-8711-13cafa5acfb9 user=1 mode=control
+2026-06-14 18:48:11 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-14 18:48:11 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-14 18:48:15 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复评分非常高，但静息心率已经连续3天升高，这可能表明身体正在承受一定的负荷，建议适当关注恢复和休息。
+2026-06-14 18:48:15 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-14 18:48:21 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-14 18:48:27 - health_agents - INFO - [nutrition_planner] 目标热量=2110kcal 蛋白=130g 油脂代偿=否
+2026-06-14 18:48:29 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 今晚优先减少睡前屏幕时间。
+2026-06-14 18:48:29 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-14 18:48:33 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-14 18:49:53 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:50:28 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:51:12 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:51:37 - api_server - INFO - [/plan] 创建任务 d099fc89-1f8e-4da3-87b8-d102cd6cb3c6 user=1 mode=control
+2026-06-14 18:51:39 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-14 18:51:39 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-14 18:51:42 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管总体恢复状态评分非常高，但静息心率连续3天升高表明可能有潜在的疲劳积累，建议注意休息并监控身体状态。
+2026-06-14 18:51:42 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-14 18:51:44 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-14 18:51:56 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-14 18:51:59 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 睡前减少蓝光干扰，优化深睡比例。
+2026-06-14 18:51:59 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-14 18:52:02 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-14 18:52:16 - api_server - INFO - [/plan] 创建任务 00a46994-1697-49ba-8698-4369bf0dff45 user=1 mode=experiment
+2026-06-14 18:52:16 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=experiment 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=0项 -> low
+2026-06-14 18:52:19 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=low | 你的身体状态非常好，睡眠质量高，心率变异性和静息心率都处于正常范围，无疲劳迹象，适合进行正常活动或训练。
+2026-06-14 18:52:19 - health_agents - INFO - [Router] 疲劳=low -> maintain
+2026-06-14 18:52:19 - health_agents - INFO - [maintain_plan] 维持原计划 RS=100.0 -> ['深蹲 (Squat)', '俯卧撑 (Push-up)', '硬拉 (Deadlift)', '平板支撑 (Plank)']
+2026-06-14 18:52:21 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 提升深睡比例
+2026-06-14 18:52:21 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-14 18:52:24 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-14 18:53:34 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-14 18:54:47 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…

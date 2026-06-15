@@ -36,6 +36,15 @@ class LangGraphConfig:
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")  # 默认 OpenAI 基础地址
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # 默认模型，可根据网关修改
 
+    # Langfuse 可观测性配置（大模型链路追踪）
+    # 注意：.env 用的是 LANGFUSE_BASE_URL，而 Langfuse SDK 默认读取 LANGFUSE_HOST，
+    #       这里统一映射成 host，避免 SDK 误连官方云端。
+    LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+    LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
+    LANGFUSE_HOST = os.getenv("LANGFUSE_BASE_URL") or os.getenv("LANGFUSE_HOST", "")
+    # 总开关：缺省启用，可在 .env 设 LANGFUSE_ENABLED=false 一键关闭追踪
+    LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
     # DuckDuckGo搜索引擎配置
     DUCKDUCKGO_MAX_RESULTS = 10        # 每次搜索的最大结果数
     DUCKDUCKGO_REGION = "zh-cn"        # 搜索区域设置为中国
@@ -75,6 +84,20 @@ class LangGraphConfig:
         if cls.OPENAI_API_KEY:
             config["api_key"] = cls.OPENAI_API_KEY
         return config
+
+    @classmethod
+    def is_langfuse_enabled(cls) -> bool:
+        """是否启用 Langfuse 追踪：需总开关开启且公私钥齐全。"""
+        return bool(cls.LANGFUSE_ENABLED and cls.LANGFUSE_PUBLIC_KEY and cls.LANGFUSE_SECRET_KEY)
+
+    @classmethod
+    def get_langfuse_config(cls) -> Dict[str, Any]:
+        """返回用于初始化 Langfuse 客户端的配置字典。"""
+        return {
+            "public_key": cls.LANGFUSE_PUBLIC_KEY,
+            "secret_key": cls.LANGFUSE_SECRET_KEY,
+            "host": cls.LANGFUSE_HOST or None,
+        }
 
     @classmethod
     def get_search_config(cls) -> Dict[str, Any]:

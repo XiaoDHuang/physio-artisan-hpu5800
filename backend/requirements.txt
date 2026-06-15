@@ -167,3 +167,8 @@ psutil>=5.9.0
 psycopg2-binary>=2.9.9
 
 
+
+# Langfuse - 大模型可观测性/链路追踪（多智能体 LLM 调用上报）
+# 功能：以 LangChain CallbackHandler 形式把每个智能体的 LLM 调用作为 generation 上报
+# 使用场景：在 Langfuse 控制台查看 trace/token/延迟，便于调试与成本分析
+langfuse>=3.0.0,<4.0.0

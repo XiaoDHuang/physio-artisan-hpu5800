@@ -126,14 +126,38 @@ _DDL_DONE = False
 def _ensure_schema(conn) -> None:
     """幂等补齐演示所需的列/索引（首次写入时执行一次）。"""
     with conn.cursor() as cur:
-        # users 增补体脂率/肌肉量列（设计方案与仪表盘需要，库内原缺）
+        # users
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS body_fat_pct FLOAT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS muscle_mass_kg FLOAT")
-        # ai_conversations 以 session_id 作为会话键，需唯一索引以支持 UPSERT
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS goals JSONB")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chronological_age INT")
+        # ai_conversations
+        cur.execute("ALTER TABLE ai_conversations ADD COLUMN IF NOT EXISTS messages JSONB")
+        cur.execute("ALTER TABLE ai_conversations ADD COLUMN IF NOT EXISTS speech_report TEXT")
+        cur.execute("ALTER TABLE ai_conversations ADD COLUMN IF NOT EXISTS recommendations JSONB")
         cur.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_conv_session "
             "ON ai_conversations(session_id)"
         )
+        # exercise_records 缺口列
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS start_time TIME")
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS end_time TIME")
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS distance_km FLOAT")
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS actual_duration_min INT")
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS actual_rpe INT")
+        cur.execute("ALTER TABLE exercise_records ADD COLUMN IF NOT EXISTS calories_burned INT")
+        # nutrition_logs 结构化列
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS total_calories_actual INT")
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS calories_remaining INT")
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS protein_g INT")
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS carbs_g INT")
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS fat_g INT")
+        cur.execute("ALTER TABLE nutrition_logs ADD COLUMN IF NOT EXISTS meal_breakdown JSONB")
+        # watch_data 结构化睡眠列
+        cur.execute("ALTER TABLE watch_data ADD COLUMN IF NOT EXISTS actual_bedtime VARCHAR(5)")
+        cur.execute("ALTER TABLE watch_data ADD COLUMN IF NOT EXISTS actual_wake_time VARCHAR(5)")
+        cur.execute("ALTER TABLE watch_data ADD COLUMN IF NOT EXISTS total_sleep_min INT")
+        cur.execute("ALTER TABLE watch_data ADD COLUMN IF NOT EXISTS nap_min INT DEFAULT 0")
 
 
 def _run(fn):
@@ -171,13 +195,21 @@ def save_entry(data_type: str, cleaned: Dict[str, Any],
 
     if data_type == "exercise":
         payload = {k: cleaned[k] for k in ("duration_minutes", "peak_hr", "hr_60s", "rpe") if k in cleaned}
+        # 按 design 约定同步写结构化列（双写）
+        dur = cleaned.get("duration_minutes")
+        peak = cleaned.get("peak_hr")
+        hr60 = cleaned.get("hr_60s")
+        rpe = cleaned.get("rpe")
 
         def _ins(conn):
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO exercise_records (user_id, date, exercise_type, analysis_result) "
-                    "VALUES (%s, %s, %s, %s) RETURNING id",
-                    (user_id, the_date, cleaned.get("exercise_type", "用户录入"), Json(payload)),
+                    """INSERT INTO exercise_records
+                       (user_id, date, exercise_type, actual_duration_min, peak_hr, hr_60s_after,
+                        actual_rpe, calories_burned, analysis_result)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (user_id, the_date, cleaned.get("exercise_type", "用户录入"),
+                     dur, peak, hr60, rpe, payload.get("calories", 0), Json(payload)),
                 )
                 return cur.fetchone()[0]
 
@@ -190,9 +222,11 @@ def save_entry(data_type: str, cleaned: Dict[str, Any],
         def _ins(conn):
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO nutrition_logs (user_id, date, meal_type, nutrition_result) "
-                    "VALUES (%s, %s, %s, %s) RETURNING id",
-                    (user_id, the_date, cleaned.get("meal_type", "daily"), Json(payload)),
+                    """INSERT INTO nutrition_logs
+                       (user_id, date, meal_type, total_calories_actual, narrative, nutrition_result)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (user_id, the_date, cleaned.get("meal_type", "daily"),
+                     None, cleaned["diet_narrative"], Json(payload)),
                 )
                 return cur.fetchone()[0]
 

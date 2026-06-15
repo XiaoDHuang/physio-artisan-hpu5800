@@ -1,108 +1,112 @@
 <script setup lang="ts">
+// 睡眠监测：ECharts 评分环 + 浅睡/深睡分时堆叠柱
 import { computed } from 'vue'
+import type { EChartsOption } from 'echarts'
 import type { SleepPanel } from '@/api/types'
 import SectionCard from './SectionCard.vue'
+import EChart from '@/components/common/EChart.vue'
 
 const props = defineProps<{ sleep: SleepPanel | null }>()
 
 const score = computed(() => props.sleep?.score ?? 0)
 const scoreLabel = computed(() => {
   const s = score.value
-  return s >= 80 ? '良好' : s >= 60 ? '一般' : '欠佳'
+  return s >= 85 ? '优秀' : s >= 70 ? '良好' : s >= 50 ? '一般' : '欠佳'
 })
-const ringStyle = computed(() => ({
-  background: `conic-gradient(var(--c-primary) ${score.value * 3.6}deg, #eef3f1 0)`,
+
+const gaugeOption = computed<EChartsOption>(() => ({
+  series: [
+    {
+      type: 'gauge',
+      startAngle: 90,
+      endAngle: -270,
+      radius: '92%',
+      pointer: { show: false },
+      progress: {
+        show: true,
+        width: 12,
+        roundCap: true,
+        itemStyle: {
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 1, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#5b9bf3' },
+              { offset: 1, color: '#3fbf8f' },
+            ],
+          },
+        },
+      },
+      axisLine: { lineStyle: { width: 12, color: [[1, '#eef3f1']] } },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      anchor: { show: false },
+      title: { show: true, offsetCenter: [0, '-32%'], fontSize: 11, color: '#9aa8a2' },
+      detail: {
+        offsetCenter: [0, '4%'],
+        formatter: [`{a|${score.value}}`, `{b|${scoreLabel.value}}`].join('\n'),
+        rich: {
+          a: { fontSize: 30, fontWeight: 'bolder', color: '#1f2d28', lineHeight: 32 },
+          b: { fontSize: 12, color: '#34a87c', lineHeight: 18 },
+        },
+      },
+      data: [{ value: score.value, name: '睡眠评分' }],
+    },
+  ],
 }))
 
-// 柱状：每小时 浅睡(light)/深睡(deep) 堆叠，高度按分钟归一
-const bars = computed(() => {
+const barOption = computed<EChartsOption>(() => {
   const tl = props.sleep?.stages_timeline ?? []
-  const max = Math.max(60, ...tl.map((s) => (s.deep || 0) + (s.light || 0)))
-  return tl.map((s, i) => ({
-    hour: i,
-    deepH: ((s.deep || 0) / max) * 100,
-    lightH: ((s.light || 0) / max) * 100,
-  }))
+  const hours = tl.map((s) => s.hour)
+  const light = tl.map((s) => s.light || 0)
+  const deep = tl.map((s) => s.deep || 0)
+  return {
+    grid: { left: 4, right: 4, top: 8, bottom: 4, containLabel: true },
+    tooltip: { trigger: 'axis' },
+    xAxis: {
+      type: 'category', data: hours, axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#e6efea' } },
+      axisLabel: { color: '#9aa8a2', fontSize: 10 },
+    },
+    yAxis: { type: 'value', show: false },
+    series: [
+      { name: '浅睡', type: 'bar', stack: 's', data: light, barWidth: '55%', itemStyle: { color: '#b9c6f7' } },
+      { name: '深睡', type: 'bar', stack: 's', data: deep, itemStyle: { color: '#6a73d8', borderRadius: [3, 3, 0, 0] } },
+    ],
+  }
 })
 </script>
 
 <template>
   <SectionCard title="睡眠监测" more>
-    <div class="sleep-body">
-      <div class="ring-wrap">
-        <div class="ring" :style="ringStyle">
-          <div class="ring-inner">
-            <div class="ring-label">睡眠评分</div>
-            <div class="ring-score">{{ score || '—' }}</div>
-            <div class="ring-state">{{ scoreLabel }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="legend">
-        <span class="dot light" /> 浅睡
-        <span class="dot deep" /> 深睡
-      </div>
-
-      <div class="bars">
-        <div v-for="b in bars" :key="b.hour" class="bar-col">
-          <div class="bar light" :style="{ height: b.lightH + '%' }" />
-          <div class="bar deep" :style="{ height: b.deepH + '%' }" />
-        </div>
-        <div v-if="!bars.length" class="bars-empty">暂无睡眠分时数据</div>
-      </div>
-      <div class="x-axis">
-        <span v-for="b in bars" :key="b.hour">{{ b.hour }}</span>
-      </div>
+    <div class="ring-wrap">
+      <EChart :option="gaugeOption" height="150px" />
     </div>
+
+    <div class="legend">
+      <span class="dot light" /> 浅睡
+      <span class="dot deep" /> 深睡
+    </div>
+
+    <div v-if="(sleep?.stages_timeline?.length ?? 0)">
+      <EChart :option="barOption" height="120px" />
+    </div>
+    <div v-else class="bars-empty">暂无睡眠分时数据</div>
   </SectionCard>
 </template>
 
 <style scoped>
-.sleep-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.ring {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ring-inner {
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.ring-label {
-  font-size: 11px;
-  color: var(--c-text-tertiary);
-}
-.ring-score {
-  font-size: 30px;
-  font-weight: 800;
-  color: var(--c-text);
-  line-height: 1.1;
-}
-.ring-state {
-  font-size: 11px;
-  color: var(--c-primary-hover);
+.ring-wrap {
+  width: 100%;
 }
 .legend {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: center;
   font-size: 12px;
   color: var(--c-text-secondary);
-  margin: 16px 0 10px;
+  margin: 8px 0 6px;
 }
 .dot {
   width: 10px;
@@ -119,46 +123,10 @@ const bars = computed(() => {
 .dot + .dot {
   margin-left: 10px;
 }
-.bars {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 90px;
-  width: 100%;
-  padding: 0 4px;
-}
-.bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column-reverse;
-  height: 100%;
-}
-.bar {
-  width: 100%;
-  border-radius: 3px;
-}
-.bar.deep {
-  background: #6a73d8;
-}
-.bar.light {
-  background: #b9c6f7;
-}
 .bars-empty {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 36px 0;
+  text-align: center;
   font-size: 12px;
-  color: var(--c-text-tertiary);
-}
-.x-axis {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  padding: 4px 4px 0;
-  font-size: 10px;
   color: var(--c-text-tertiary);
 }
 </style>

@@ -49,6 +49,12 @@ from agents.health_prompts import (
     load_prompt,
     GUARDRAIL_BLOCK_TEMPLATE,
 )
+from agents.observability import (
+    get_langfuse_client,
+    build_callback_handler,
+    build_run_config,
+    flush_langfuse,
+)
 
 
 # --------------------------- 日志配置 ---------------------------
@@ -142,6 +148,8 @@ class LangGraphHealthAgents:
         llm_config = config.get_llm_config()
         self.llm = ChatOpenAI(**llm_config)
         self.graph = self._create_agent_graph()
+        # Langfuse 可观测性客户端（None 表示未启用/不可用 -> 自动无追踪运行）
+        self.langfuse = get_langfuse_client()
 
     # ---------------------------------------------------------------------
     # 工作流图构建
@@ -549,7 +557,8 @@ class LangGraphHealthAgents:
             request: {
                 "user_id": int,                 # 默认 1
                 "mode": "control"|"experiment", # 默认 control(放任恶化, 高疲劳演示)
-                "user_query": str               # 可选, 用户自由提问
+                "user_query": str,              # 可选, 用户自由提问
+                "session_id": str               # 可选, 用于 Langfuse trace 按会话归组
             }
         Returns:
             {success, mode, physio_assessment, training_plan, meal_plan,
@@ -558,6 +567,7 @@ class LangGraphHealthAgents:
         user_id = request.get("user_id", 1)
         mode = request.get("mode", "control")
         user_query = request.get("user_query", "")
+        session_id = request.get("session_id", "")
 
         initial_state: HealthAgentState = {
             "messages": [HumanMessage(content=f"请对 user={user_id} (mode={mode}) 进行健康决策评估")],
@@ -570,8 +580,14 @@ class LangGraphHealthAgents:
             "current_agent": "", "iteration_count": 0, "status": "init",
         }
 
+        # 构造 Langfuse 追踪配置（handler 为 None 时 run_config 为 None，行为同接入前）
+        handler, _ = build_callback_handler(self.langfuse)
+        run_config = build_run_config(
+            handler, user_id=user_id, mode=mode, session_id=session_id,
+        )
+
         try:
-            final = self.graph.invoke(initial_state)
+            final = self.graph.invoke(initial_state, config=run_config)
             result = {
                 "success": True,
                 "mode": mode,
@@ -608,6 +624,9 @@ class LangGraphHealthAgents:
                 "agent_outputs": {},
                 "status": "error",
             }
+        finally:
+            # 批处理任务：确保本次 trace 的事件在返回前刷入 Langfuse
+            flush_langfuse(self.langfuse)
 
     def get_workflow_visualization(self) -> Dict[str, Any]:
         """返回工作流结构，供前端"智能体会诊室"渲染。"""

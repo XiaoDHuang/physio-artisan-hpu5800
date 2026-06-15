@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Dict, List, Any
 
 from psycopg2.extras import Json, RealDictCursor
@@ -284,3 +285,45 @@ async def load_latest_assessment(user_id: int) -> Dict[str, Any]:
         "created_at": str(row.get("created_at")),
         "status": "completed",
     }
+
+
+# =============================================================================
+# /plan 实时产出写回 user_plans（三页建议/训练方案源）
+# =============================================================================
+def _save_user_plan_sync(user_id: int, plan_date: str, result: Dict[str, Any]) -> bool:
+    """幂等 UPSERT 到 user_plans（按 user_id + plan_date 唯一约束）。"""
+    from agents.plan_adapter import to_user_plans
+
+    plans = to_user_plans(result, plan_date)
+    pool = get_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO user_plans (user_id, plan_date, training_plan, sleep_plan, diet_plan, source)
+                   VALUES (%s, %s, %s, %s, %s, 'agent')
+                   ON CONFLICT (user_id, plan_date) DO UPDATE SET
+                       training_plan=EXCLUDED.training_plan,
+                       sleep_plan=EXCLUDED.sleep_plan,
+                       diet_plan=EXCLUDED.diet_plan,
+                       source='agent',
+                       updated_at=CURRENT_TIMESTAMP""",
+                (user_id, plan_date,
+                 Json(plans["training_plan"]), Json(plans["sleep_plan"]), Json(plans["diet_plan"])),
+            )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logging.getLogger("api_server").error("[plan_writeback] user_plans 落库失败: %s", e)
+        return False
+    finally:
+        pool.putconn(conn)
+
+
+async def save_user_plan(user_id: int, plan_date: str, result: Dict[str, Any]) -> bool:
+    """异步接口：把一次 /plan 结果写入 user_plans。
+
+    失败只记日志、不抛，绝不阻塞报告主流程。
+    """
+    return await asyncio.to_thread(_save_user_plan_sync, user_id, plan_date, result)
