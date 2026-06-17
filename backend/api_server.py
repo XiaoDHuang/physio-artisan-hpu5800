@@ -44,6 +44,7 @@ from agents import health_data as hdata
 from agents.safety import screen_text
 from agents.asr import transcribe_audio, ASRError, ASRValidationError
 from agents.tts import synthesize_speech, TTSError, TTSValidationError
+from agents.image_gen import generate_report_image, ImageGenError, ImageGenValidationError
 from store.safety_store import save_safety_log
 from store.postgres_store import load_latest_assessment
 
@@ -608,6 +609,48 @@ async def tts_synthesize(request: TTSRequest):
     return Response(content=audio_data, media_type="audio/mpeg")
 
 
+# --------------------------- Image 报告图片生成 ---------------------------
+class ReportImageRequest(BaseModel):
+    kpi: dict = Field(default_factory=dict, description="KPI 卡片数据")
+    body: dict = Field(default_factory=dict, description="身体指标数据")
+    sleep: dict = Field(default_factory=dict, description="睡眠监测数据")
+    nutrition: dict = Field(default_factory=dict, description="饮食监测数据")
+    exercise: dict = Field(default_factory=dict, description="运动监测数据")
+    healthAdvice: dict = Field(default_factory=dict, description="健康建议文本")
+
+
+@app.post("/report-image")
+async def report_image_generate(request: ReportImageRequest):
+    """报告图片生成端点。
+
+    JSON body:
+        { "kpi": {...}, "body": {...}, "sleep": {...}, ... }
+
+    返回: image/png 二进制图片数据
+    """
+    data = request.model_dump()
+    if not data:
+        raise HTTPException(status_code=422, detail={"error": "报告数据为空"})
+
+    api_logger.info(f"[/api/report-image] 生成请求 kpi_keys={list(data.get('kpi', {}).keys())}")
+
+    try:
+        img_data = await asyncio.to_thread(generate_report_image, data)
+    except ImageGenValidationError as e:
+        api_logger.warning(f"[/api/report-image] 校验失败: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except ImageGenError as e:
+        api_logger.error(f"[/api/report-image] 图片生成异常: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except Exception as e:
+        api_logger.error(f"[/api/report-image] 未知异常: {e}")
+        raise HTTPException(status_code=500, detail={"error": f"图片生成内部错误: {e}"})
+
+    api_logger.info(f"[/api/report-image] 生成成功 img_bytes={len(img_data)}")
+    from fastapi.responses import Response
+    return Response(content=img_data, media_type="image/png")
+
+
 # --------------------------- 健康检查 / 信息 ---------------------------
 @app.get("/health")
 async def health_check():
@@ -638,6 +681,7 @@ async def root():
             "report_latest": "/report/latest/{user_id} - 最近一次报告(落库缓存)",
             "asr": "/asr - 语音转文字(千问ASR)",
             "tts": "/tts - 文字转语音(大模型TTS)",
+            "report_image": "/report-image - 报告数据转图片(大模型Image Gen)",
             "conversations": "/conversations - 会话历史",
             "docs": "/docs - API文档",
         },

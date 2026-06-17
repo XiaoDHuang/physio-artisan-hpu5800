@@ -80,6 +80,15 @@ class LangGraphConfig:
     # 文本长度限制（字符）
     TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "1000"))
 
+    # ======================== Image 图片生成配置 ========================
+    # 调用模式：chat_image(多模态chat image输出) | image_gen(/images/generations)
+    IMAGE_MODE = os.getenv("IMAGE_MODE", "chat_image")
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gpt-image-1")
+    IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1024x1024")
+    # Image 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL") or OPENAI_BASE_URL
+    IMAGE_API_KEY = os.getenv("IMAGE_API_KEY") or OPENAI_API_KEY
+
     # 模型生成参数
     TEMPERATURE = 0.7    # 控制生成文本的随机性(0-1，越高越随机)
     MAX_TOKENS = 4000    # 最大生成token数

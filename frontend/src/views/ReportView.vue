@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useReportStore } from '@/stores/report'
+import { useReportExport } from '@/composables/useReportExport'
 import AppHeader from '@/components/common/AppHeader.vue'
 import KpiCards from '@/components/report/KpiCards.vue'
 import BodyOverview from '@/components/report/BodyOverview.vue'
@@ -15,9 +16,24 @@ import ChatDock from '@/components/report/ChatDock.vue'
 const store = useReportStore()
 const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice } = storeToRefs(store)
 
+const { isLoading, errorMsg, exportReportImage, downloadImage } = useReportExport()
+const previewUrl = ref<string | null>(null)
+
 onMounted(() => {
   store.load()
 })
+
+async function onExport() {
+  const url = await exportReportImage()
+  if (url) {
+    previewUrl.value = url
+  }
+}
+
+function closePreview() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = null
+}
 </script>
 
 <template>
@@ -36,14 +52,14 @@ onMounted(() => {
           </svg>
           2026 - 06 - 01
         </span>
-        <button class="hdr-export">
+        <button class="hdr-export" :disabled="isLoading" @click="onExport">
           <svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          导出报告
+          {{ isLoading ? '正在生成报告图片...' : '导出报告' }}
         </button>
       </AppHeader>
 
@@ -70,6 +86,24 @@ onMounted(() => {
       <ChatDock />
       </div>
     </div>
+
+    <!-- 报告图片预览弹窗 -->
+    <Transition name="modal">
+      <div v-if="previewUrl" class="preview-overlay" @click.self="closePreview">
+        <div class="preview-box">
+          <img :src="previewUrl" class="preview-img" alt="报告图片" />
+          <div class="preview-actions">
+            <button class="preview-btn" @click="downloadImage(previewUrl!, '健康报告-' + new Date().toISOString().slice(0,10) + '.png')">下载</button>
+            <button class="preview-btn secondary" @click="closePreview">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 错误提示 -->
+    <Transition name="toast">
+      <div v-if="errorMsg" class="export-error-toast">{{ errorMsg }}</div>
+    </Transition>
   </div>
 </template>
 
@@ -133,12 +167,99 @@ onMounted(() => {
   cursor: pointer;
   white-space: nowrap;
 }
-.hdr-export:hover {
+.hdr-export:hover:not(:disabled) {
   background: var(--c-primary-hover);
+}
+.hdr-export:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 .hdr-ico {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
+}
+
+/* 报告图片预览弹窗 */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: calc(90vh - 100px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+.preview-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.preview-btn {
+  padding: 10px 28px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--c-primary);
+  color: #fff;
+}
+.preview-btn.secondary {
+  background: var(--c-primary-soft);
+  color: var(--c-primary-hover);
+}
+.preview-btn:hover {
+  opacity: 0.85;
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.25s;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+/* 错误提示 */
+.export-error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(239, 68, 68, 0.92);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 9999;
+  white-space: nowrap;
+}
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 </style>

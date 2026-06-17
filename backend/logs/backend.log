@@ -283,3 +283,18 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-17 23:36:56 - api_server - INFO - [/tts] 合成请求 text_len=48
 2026-06-17 23:37:00 - tts - INFO - TTS 合成成功（audio_speech），206400 字节
 2026-06-17 23:37:00 - api_server - INFO - [/tts] 合成成功 audio_bytes=206400
+2026-06-17 23:46:05 - api_server - INFO - [/tts] 合成请求 text_len=48
+2026-06-17 23:46:08 - tts - INFO - TTS 合成成功（audio_speech），195840 字节
+2026-06-17 23:46:08 - api_server - INFO - [/tts] 合成成功 audio_bytes=195840
+2026-06-17 23:46:11 - api_server - INFO - [/tts] 合成请求 text_len=48
+2026-06-17 23:46:15 - tts - INFO - TTS 合成成功（audio_speech），206400 字节
+2026-06-17 23:46:15 - api_server - INFO - [/tts] 合成成功 audio_bytes=206400
+2026-06-17 23:47:07 - api_server - INFO - [/tts] 合成请求 text_len=301
+2026-06-17 23:47:18 - tts - INFO - TTS 合成成功（audio_speech），853440 字节
+2026-06-17 23:47:18 - api_server - INFO - [/tts] 合成成功 audio_bytes=853440
+2026-06-18 00:34:17 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-18 00:34:35 - api_server - INFO - [/api/report-image] 生成请求 kpi_keys=['health_score', 'score_delta_vs_last_week', 'status', 'exercise_rate', 'exercise_rate_delta', 'risk']
+2026-06-18 00:34:35 - image_gen - INFO - Image Gen prompt 长度: 999 字符
+2026-06-18 00:35:26 - image_gen - WARNING - Image Gen chat_image 失败，尝试 image_gen 兜底
+2026-06-18 00:36:14 - image_gen - INFO - Image Gen 生成成功（image_gen），1173335 字节
+2026-06-18 00:36:14 - api_server - INFO - [/api/report-image] 生成成功 img_bytes=1173335
