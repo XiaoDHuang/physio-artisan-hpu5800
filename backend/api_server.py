@@ -43,6 +43,7 @@ from agents import intake
 from agents import health_data as hdata
 from agents.safety import screen_text
 from agents.asr import transcribe_audio, ASRError, ASRValidationError
+from agents.tts import synthesize_speech, TTSError, TTSValidationError
 from store.safety_store import save_safety_log
 from store.postgres_store import load_latest_assessment
 
@@ -571,6 +572,42 @@ async def asr(audio: UploadFile = File(...), audio_format: str = Form(default=""
     return result
 
 
+# --------------------------- TTS 语音合成 ---------------------------
+class TTSRequest(BaseModel):
+    text: str = Field(..., description="待合成文本", min_length=1)
+
+
+@app.post("/tts")
+async def tts_synthesize(request: TTSRequest):
+    """语音合成端点。
+
+    JSON body:
+        {"text": "每日30分钟有氧搭配15分钟力量..."}
+
+    返回: audio/mpeg 二进制音频数据
+    """
+    if not request.text or not request.text.strip():
+        raise HTTPException(status_code=422, detail={"error": "文本为空"})
+
+    api_logger.info(f"[/tts] 合成请求 text_len={len(request.text)}")
+
+    try:
+        audio_data = await asyncio.to_thread(synthesize_speech, request.text.strip())
+    except TTSValidationError as e:
+        api_logger.warning(f"[/tts] 校验失败: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except TTSError as e:
+        api_logger.error(f"[/tts] TTS 服务异常: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except Exception as e:
+        api_logger.error(f"[/tts] 未知异常: {e}")
+        raise HTTPException(status_code=500, detail={"error": f"TTS 服务内部错误: {e}"})
+
+    api_logger.info(f"[/tts] 合成成功 audio_bytes={len(audio_data)}")
+    from fastapi.responses import Response
+    return Response(content=audio_data, media_type="audio/mpeg")
+
+
 # --------------------------- 健康检查 / 信息 ---------------------------
 @app.get("/health")
 async def health_check():
@@ -600,6 +637,7 @@ async def root():
             "sleep_entry": "/sleep/entry - 手动录入睡眠记录(POST, 写watch_data JSONB)",
             "report_latest": "/report/latest/{user_id} - 最近一次报告(落库缓存)",
             "asr": "/asr - 语音转文字(千问ASR)",
+            "tts": "/tts - 文字转语音(大模型TTS)",
             "conversations": "/conversations - 会话历史",
             "docs": "/docs - API文档",
         },

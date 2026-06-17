@@ -71,6 +71,15 @@ class LangGraphConfig:
     ASR_MAX_SECONDS = int(os.getenv("ASR_MAX_SECONDS", "60"))
     ASR_MAX_MB = float(os.getenv("ASR_MAX_MB", "10"))
 
+    # ======================== TTS 语音合成配置 ========================
+    TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
+    TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+    # TTS 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    TTS_BASE_URL = os.getenv("TTS_BASE_URL") or OPENAI_BASE_URL
+    TTS_API_KEY = os.getenv("TTS_API_KEY") or OPENAI_API_KEY
+    # 文本长度限制（字符）
+    TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "1000"))
+
     # 模型生成参数
     TEMPERATURE = 0.7    # 控制生成文本的随机性(0-1，越高越随机)
     MAX_TOKENS = 4000    # 最大生成token数
