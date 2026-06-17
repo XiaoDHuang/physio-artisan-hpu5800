@@ -83,7 +83,7 @@ class LangGraphConfig:
     # ======================== Image 图片生成配置 ========================
     # 调用模式：chat_image(多模态chat image输出) | image_gen(/images/generations)
     IMAGE_MODE = os.getenv("IMAGE_MODE", "chat_image")
-    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gpt-image-1")
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gpt-image-1.5")
     IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1024x1024")
     # Image 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
     IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL") or OPENAI_BASE_URL

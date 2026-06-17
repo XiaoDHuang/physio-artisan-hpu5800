@@ -1,9 +1,7 @@
 """
 大模型图片生成适配器
 
-支持两种路径：
-- chat_image: POST /chat/completions + modalities: ["image"]（主路径）
-- image_gen: POST /images/generations（兜底）
+通过 POST /images/generations 生成健康报告可视化图片。
 
 对称于 ASR / TTS，形成完整的多模态三角。
 """
@@ -46,9 +44,9 @@ class ImageGenValidationError(Exception):
 
 
 def _post_with_retry(method, url, **kwargs):
-    """带 429 指数退避的 requests 调用。"""
-    max_retries = 3
-    delays = [1, 2, 3]
+    """带 429 快速重试的 requests 调用（最多重试1次，应对偶发网络抖动）。"""
+    max_retries = 1
+    delays = [2]
     for attempt in range(max_retries + 1):
         try:
             resp = requests.request(method, url, **kwargs)
@@ -85,123 +83,61 @@ def build_report_prompt(data: dict) -> str:
         return str(val) if val is not None and val != "" else default
 
     lines = [
-        "生成一张中文健康报告可视化信息图，风格简洁专业，白底，卡片式布局，配色以翠绿色(#3fbf8f)为主色调。",
+        "生成一张简体中文健康报告可视化信息图。",
+        "【关键语言要求】所有文字必须是简体中文，严格禁止繁体字（例如：写'身体'不写'身體'，写'运动'不写'運動'，写'饮食'不写'飲食'，写'睡眠'不写'睡眠'）。",
         "",
-        "=== 顶部 KPI 区域（4 列横向排布）===",
-        f"综合健康评分：{v(kpi, 'health_score')} / 100     身体状态：{v(kpi, 'status')}",
-        f"运动达标率：{v(kpi, 'exercise_rate')}%           健康风险：{v(kpi, 'risk')}",
+        "【整体风格】白色底(#ffffff)，翠绿色(#3fbf8f)主色调，现代简约卡片式UI，卡片间距≥20px，每个卡片有独立圆角16px、淡灰色阴影。",
         "",
-        "=== 身体指标概览（居中人体剪影，左右各三行数据）===",
-        f"心率：{v(body, 'heart_rate')} 次/分     BMI：{v(body, 'bmi')}     体脂率：{v(body, 'body_fat_pct')}%",
-        f"体重：{v(body, 'weight_kg')} kg       基础代谢：{v(body, 'bmr')} 千卡     肌肉量：{v(body, 'muscle_mass_kg')} kg",
-        f"数据来源：{v(body, 'update_date')}",
+        "【顶部 — KPI 横排4卡片】等宽4列，每列一个圆角卡片，卡片内：上排小字标签(灰色)、下排大字数值(翠绿色加粗)：",
+        f"  卡片1：标签「综合健康评分」 数值「{v(kpi, 'health_score')} / 100」",
+        f"  卡片2：标签「身体状态」 数值「{v(kpi, 'status')}」",
+        f"  卡片3：标签「运动达标率」 数值「{v(kpi, 'exercise_rate')}%」",
+        f"  卡片4：标签「健康风险」 数值「{v(kpi, 'risk')}」",
         "",
-        "=== 健康建议（三列卡片：运动/睡眠/饮食）===",
-        f"运动建议：{v(health_advice, 'exercise')}",
-        f"睡眠建议：{v(health_advice, 'sleep')}",
-        f"饮食建议：{v(health_advice, 'nutrition')}",
+        "【左栏上半部 — 身体指标概览卡片】宽约60%，标题「身体指标概览」，卡片内左右两栏：",
+        "  左栏竖排3行指标（标签+数值）：",
+        f"    「心率」{v(body, 'heart_rate')} 次/分",
+        f"    「体重」{v(body, 'weight_kg')} kg",
+        f"    「基础代谢」{v(body, 'bmr')} 千卡",
+        "  右栏竖排3行指标（标签+数值）：",
+        f"    「BMI」{v(body, 'bmi')}",
+        f"    「体脂率」{v(body, 'body_fat_pct')}%",
+        f"    「肌肉量」{v(body, 'muscle_mass_kg')} kg",
+        f"  底部小字：「{v(body, 'update_date')} 更新」",
         "",
-        "=== 右侧边栏 ===",
-        f"睡眠评分：{v(sleep, 'score')} / 100   总睡眠：{v(sleep, 'total_hours')} 小时",
-        f"饮食摄入：{v(nutrition, 'total_calories')} 千卡   均衡度：{v(nutrition, 'balance_score')}",
-        f"今日步数：{v(exercise, 'steps')} / {v(exercise, 'steps_goal', '8000')} 步   运动时长：{v(exercise, 'duration_minutes')} 分钟",
-        f"运动强度：{v(exercise, 'intensity')}   消耗热量：{v(exercise, 'calories_burned')} 千卡",
+        "【左栏下半部 — 健康建议卡片】标题「健康建议」，3列横向排布，每列一个独立小卡片，卡片内有图标+标题+描述文字，文字小三号：",
+        f"  列1（运动）标题「运动建议」，内容「{v(health_advice, 'exercise')}」",
+        f"  列2（睡眠）标题「睡眠建议」，内容「{v(health_advice, 'sleep')}」",
+        f"  列3（饮食）标题「饮食建议」，内容「{v(health_advice, 'nutrition')}」",
         "",
-        "=== 布局要求 ===",
-        "整体信息图格式，自上而下排布：KPI行 → 身体概览+健康建议(左栏宽) + 睡眠/饮食/运动(右栏窄) → 底部签章行",
-        "所有中文必须使用简体中文（简体字），禁止使用繁体字",
-        "所有中文使用清晰衬线字体或宋体，数字用等宽数字字体",
-        "卡片圆角16px，带淡阴影，数据用大号加粗字体显示",
-        "底部标注：AI健康助手 · 数据仅供参考 · 生成日期：今日",
+        "【右栏 — 睡眠/饮食/运动 3个竖向堆叠卡片】宽约35%，3个独立卡片，间距明显，每个卡片标题+数据行：",
+        f"  卡片A「睡眠监测」：评分 {v(sleep, 'score')}/100  ·  总时长 {v(sleep, 'total_hours')} 小时",
+        f"  卡片B「饮食监测」：摄入 {v(nutrition, 'total_calories')} 千卡  ·  均衡度 {v(nutrition, 'balance_score')}",
+        f"  卡片C「运动监测」：步数 {v(exercise, 'steps')}/{v(exercise, 'steps_goal', '8000')}  ·  时长 {v(exercise, 'duration_minutes')} 分钟  ·  强度 {v(exercise, 'intensity')}  ·  消耗 {v(exercise, 'calories_burned')} 千卡",
+        "",
+        "【布局规范】",
+        "  - 整体宽度960px，左栏60%右栏35%，中间5%留白",
+        "  - KPI行高度约100px，身体指标卡片高度约200px，健康建议卡片高度约160px",
+        "  - 右栏3个卡片高度均分，各约120px",
+        "  - 所有文字必须使用简体中文（Simplified Chinese），禁止任何繁体字",
+        "  - 数字使用粗体、翠绿色或深灰色，标签使用常规灰色",
+        "  - 卡片背景#fafbfc，阴影0 2px 8px rgba(0,0,0,0.08)",
+        "  - 底部一行小字：「AI健康助手 · 数据仅供参考」",
     ]
     return "\n".join(lines)
 
 
-def _generate_via_chat_image(data: dict, prompt: str) -> bytes:
-    """路径①：Chat Completions + modalities: ["image"]。
-
-    返回: PNG 图片字节
-    """
-    base_url = config.IMAGE_BASE_URL.rstrip("/")
-    url = f"{base_url}/chat/completions"
-
-    payload = {
-        "model": config.IMAGE_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "modalities": ["image"],
-        "image": {
-            "size": config.IMAGE_SIZE,
-            "quality": "standard",
-        },
-        "max_tokens": 2048,
-    }
-
-    try:
-        resp = _post_with_retry("POST", url,
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {config.IMAGE_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            timeout=120,
-        )
-    except requests.RequestException as e:
-        logger.error(f"Image Gen chat_image 请求失败: {e}")
-        raise ImageGenError(f"图片生成服务请求失败: {e}") from e
-
-    if not resp.ok:
-        logger.error(f"Image Gen chat_image 上游错误 {resp.status_code}: {resp.text[:300]}")
-        raise ImageGenError(f"图片生成服务返回 {resp.status_code}")
-
-    # 从 chat completions 响应中提取 image data
-    try:
-        body = resp.json()
-        # 尝试多种响应格式
-        output = body["choices"][0]["message"]
-        # 格式1: modalities 返回的 image content
-        if isinstance(output.get("content"), list):
-            for part in output["content"]:
-                if isinstance(part, dict) and part.get("type") == "image":
-                    img_data = part.get("image_url", {}).get("url", "") or part.get("data", "")
-                    if img_data:
-                        import base64
-                        if img_data.startswith("data:image"):
-                            img_data = img_data.split(",", 1)[1]
-                        return base64.b64decode(img_data)
-        # 格式2: message.image.data
-        img = output.get("image", {})
-        img_data = img.get("data", "") or img.get("url", "")
-        if img_data:
-            import base64
-            if img_data.startswith("data:image"):
-                img_data = img_data.split(",", 1)[1]
-            return base64.b64decode(img_data)
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        logger.error(f"Image Gen chat_image 解析失败: {e}")
-        raise ImageGenError("图片生成响应解析失败：未找到图片数据")
-
-    raise ImageGenError("图片生成响应解析失败：未找到图片数据")
-
-
 def _generate_via_image_gen(prompt: str) -> bytes:
-    """路径②：POST /images/generations 标准端点兜底。
+    """POST /images/generations 图片生成。
 
     返回: PNG 图片字节
     """
     base_url = config.IMAGE_BASE_URL.rstrip("/")
     url = f"{base_url}/images/generations"
 
-    # 用简洁 prompt（取前 1000 字符）
-    short_prompt = prompt[:1000]
-
     payload = {
         "model": config.IMAGE_MODEL,
-        "prompt": short_prompt,
+        "prompt": prompt,
         "n": 1,
         "size": config.IMAGE_SIZE,
         "response_format": "b64_json",
@@ -214,7 +150,7 @@ def _generate_via_image_gen(prompt: str) -> bytes:
                 "Authorization": f"Bearer {config.IMAGE_API_KEY}",
                 "Content-Type": "application/json",
             },
-            timeout=120,
+            timeout=90,
         )
     except requests.RequestException as e:
         logger.error(f"Image Gen image_gen 请求失败: {e}")
@@ -265,25 +201,15 @@ def generate_report_image(data: dict) -> bytes:
     prompt = build_report_prompt(data)
     logger.info(f"Image Gen prompt 长度: {len(prompt)} 字符")
 
-    # 路径①：Chat Completions + modalities: ["image"]（主路径）
-    try:
-        img_data = _generate_via_chat_image(data, prompt)
-        if img_data and len(img_data) > 500:
-            logger.info(f"Image Gen 生成成功（chat_image），{len(img_data)} 字节")
-            return img_data
-        logger.warning("Image Gen chat_image 返回数据过小，尝试兜底路径")
-    except ImageGenError:
-        logger.warning("Image Gen chat_image 失败，尝试 image_gen 兜底")
-
-    # 路径②：/images/generations 兜底
+    # 直接走 /images/generations（apiyi 网关不支持 chat completions 的 modalities: ["image"]）
     try:
         img_data = _generate_via_image_gen(prompt)
         if img_data and len(img_data) > 500:
             logger.info(f"Image Gen 生成成功（image_gen），{len(img_data)} 字节")
             return img_data
-        raise ImageGenError("Image Gen 兜底路径返回数据过小")
+        raise ImageGenError("Image Gen 返回数据过小")
     except ImageGenError:
         raise
     except Exception as e:
-        logger.error(f"Image Gen 兜底路径异常: {e}")
+        logger.error(f"Image Gen 异常: {e}")
         raise ImageGenError(f"图片生成失败: {e}") from e
