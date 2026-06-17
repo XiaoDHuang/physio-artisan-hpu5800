@@ -127,3 +127,110 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-14 18:54:47 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
 2026-06-14 19:11:17 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
 2026-06-14 20:11:21 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 06:36:27 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 07:41:52 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 07:43:00 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 07:43:33 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 07:43:51 - api_server - INFO - [/asr] 收到音频 test_silence.wav mime=audio/wav size=32044
+2026-06-17 07:43:53 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 07:44:19 - api_server - INFO - [/plan] 创建任务 d4fd6a22-1173-4fce-9983-9eff50da660a user=1 mode=control
+2026-06-17 07:44:21 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-17 07:44:21 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-17 07:44:23 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管总体恢复状态非常理想，但连续3天静息心率升高表明身体可能正在经历一定程度的疲劳，建议关注心血管恢复情况并适度调整活动强度。
+2026-06-17 07:44:23 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-17 07:44:27 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-17 07:44:38 - health_agents - INFO - [nutrition_planner] 目标热量=1792kcal 蛋白=130g 油脂代偿=否
+2026-06-17 07:44:40 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 今晚优先减少睡前蓝光暴露。
+2026-06-17 07:44:40 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-17 07:51:22 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 07:52:31 - api_server - INFO - [/chat 会话 3961bf0262b641f4b335d9e45402458a] （语音示例）帮我看看今天的运动达标了吗？
+2026-06-17 07:52:37 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-17 07:52:37 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-17 07:52:39 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复状态良好，但连续3天静息心率升高表明您的身体可能仍在调整中，建议稍微减少训练强度或增加恢复时间。
+2026-06-17 07:52:39 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-17 07:52:48 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-17 07:52:52 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-17 07:52:54 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 今晚优先减少睡前屏幕时间以提升深睡比例。
+2026-06-17 07:52:54 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-17 07:52:56 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-17 07:53:09 - api_server - INFO - [/asr] 收到音频 test.wav mime=audio/wav size=32044
+2026-06-17 07:53:11 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 07:53:49 - api_server - INFO - [/chat 会话 3961bf0262b641f4b335d9e45402458a] 你好
+2026-06-17 07:54:10 - api_server - INFO - [/asr] 收到音频 x.webm mime=audio/webm size=64
+2026-06-17 07:54:12 - api_server - ERROR - [/asr] ASR 服务异常: ASR 语音识别服务返回 400
+2026-06-17 08:02:53 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 08:05:07 - api_server - INFO - [/asr] 收到音频 x.wav mime=audio/wav size=2080044
+2026-06-17 08:05:07 - api_server - WARNING - [/asr] 校验失败: 音频过长（最长 60s），估算约 65s
+2026-06-17 08:05:07 - api_server - INFO - [/asr] 收到音频 x.wav mime=audio/wav size=32044
+2026-06-17 08:05:11 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 08:05:18 - api_server - INFO - [/plan] 创建任务 74316228-87d9-4a8e-b861-7ad9a75749aa user=1 mode=control
+2026-06-17 08:05:20 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-17 08:05:20 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-17 08:05:22 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体准备状态评分非常高，但静息心率已连续3天升高，表明身体可能正在应对某种压力或恢复不完全。
+2026-06-17 08:05:22 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-17 08:05:27 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-17 08:06:01 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 08:06:16 - api_server - INFO - [/chat 会话 5cbefd23640943769459513c16f43803] （语音示例）如何提升我的睡眠质量？
+2026-06-17 08:09:14 - api_server - INFO - [/chat 会话 5cbefd23640943769459513c16f43803] （语音示例）最近压力有点大，有什么调节建议？
+2026-06-17 08:12:01 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 08:25:40 - api_server - INFO - [/chat 会话 ba52736dbb4042e48768d9dcad6cdd4c] （语音示例）最近压力有点大，有什么调节建议？
+2026-06-17 08:26:34 - api_server - INFO - [/chat 会话 17ed0290bbd040cbae6ec318dbd6eb3f] （语音示例）如何提升我的睡眠质量？
+2026-06-17 22:20:18 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1080
+2026-06-17 22:20:20 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:23:20 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=2690
+2026-06-17 22:23:22 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=8
+2026-06-17 22:23:40 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1080
+2026-06-17 22:23:42 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:26:04 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1332
+2026-06-17 22:26:06 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=8
+2026-06-17 22:27:32 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1052
+2026-06-17 22:27:33 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:27:49 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1500
+2026-06-17 22:27:51 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:28:15 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=2466
+2026-06-17 22:28:18 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:35:22 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=7086
+2026-06-17 22:35:52 - api_server - ERROR - [/asr] ASR 服务异常: ASR 服务请求失败: HTTPSConnectionPool(host='api.apiyi.com', port=443): Read timed out. (read timeout=30)
+2026-06-17 22:36:18 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=3614
+2026-06-17 22:36:21 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:36:48 - api_server - INFO - [/asr] 收到音频 voice.webm mime=audio/webm size=1360
+2026-06-17 22:36:51 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:39:32 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=178604
+2026-06-17 22:40:03 - api_server - ERROR - [/asr] ASR 服务异常: ASR 服务请求失败: HTTPSConnectionPool(host='api.apiyi.com', port=443): Read timed out. (read timeout=30)
+2026-06-17 22:40:19 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:40:28 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=328364
+2026-06-17 22:40:59 - api_server - ERROR - [/asr] ASR 服务异常: ASR 服务请求失败: HTTPSConnectionPool(host='api.apiyi.com', port=443): Read timed out. (read timeout=30)
+2026-06-17 22:43:43 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:44:17 - api_server - INFO - [/asr] 收到音频 s.wav mime=audio/wav size=32044
+2026-06-17 22:44:31 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:44:38 - api_server - INFO - [/asr] 收到音频 s.wav mime=audio/wav size=32044
+2026-06-17 22:44:57 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 22:46:09 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=255404
+2026-06-17 22:46:33 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:46:57 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=188204
+2026-06-17 22:47:44 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:47:54 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=203564
+2026-06-17 22:48:31 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=209324
+2026-06-17 22:49:25 - api_server - ERROR - [/asr] ASR 服务异常: ASR 服务请求失败: HTTPSConnectionPool(host='api.apiyi.com', port=443): Read timed out. (read timeout=90)
+2026-06-17 22:50:02 - api_server - ERROR - [/asr] ASR 服务异常: ASR 服务请求失败: HTTPSConnectionPool(host='api.apiyi.com', port=443): Read timed out. (read timeout=90)
+2026-06-17 22:53:12 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:53:27 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=40364
+2026-06-17 22:53:30 - api_server - ERROR - [/asr] ASR 服务异常: ASR 语音识别服务返回 429
+2026-06-17 22:54:14 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:54:50 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:55:44 - api_server - INFO - [/asr] 收到音频 s.wav mime=audio/wav size=16044
+2026-06-17 22:55:47 - api_server - ERROR - [/asr] ASR 服务异常: ASR 语音识别服务返回 429
+2026-06-17 22:58:18 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 22:58:31 - api_server - INFO - [/asr] 收到音频 s.wav mime=audio/wav size=16044
+2026-06-17 22:58:45 - api_server - ERROR - [/asr] ASR 服务异常: ASR 语音识别服务返回 429
+2026-06-17 23:00:28 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 23:01:42 - api_server - INFO - [/asr] 收到音频 s.wav mime=audio/wav size=16044
+2026-06-17 23:02:40 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 23:03:58 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 23:04:36 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-17 23:05:03 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=48044
+2026-06-17 23:05:14 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 23:06:15 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=64364
+2026-06-17 23:06:30 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0
+2026-06-17 23:07:15 - api_server - INFO - [/asr] 收到音频 voice.wav mime=audio/wav size=117164
+2026-06-17 23:07:49 - api_server - INFO - [/asr] 转写结果 model=qwen3-omni-flash text_len=0

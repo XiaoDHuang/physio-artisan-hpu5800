@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 8080,
     proxy: {
       // 前端统一走 /api，开发期由 Vite 代理到 FastAPI(8000)，规避跨域

@@ -8,6 +8,8 @@ import icImage from '@/assets/page-nutrition/图片识别.png'
 import icVideo from '@/assets/page-nutrition/视频上传.png'
 import icVoice from '@/assets/page-nutrition/语音图标.png'
 import icSend from '@/assets/page-nutrition/发送按钮图标.svg'
+import RecordingBar from '@/components/common/RecordingBar.vue'
+import { useVoiceInput } from '@/composables/useVoiceInput'
 
 const chat = useChatStore()
 const input = ref('')
@@ -30,6 +32,32 @@ function onEnter(e: KeyboardEvent) {
   e.preventDefault()
   onSend()
 }
+
+// 语音输入：点工具行「语音」图标开始录音
+const {
+  state: voiceState,
+  durationMs: voiceDuration,
+  levels: voiceLevels,
+  errorMsg: voiceError,
+  start: voiceStart,
+  stop: voiceStop,
+  cancel: voiceCancel,
+} = useVoiceInput({
+  mockSamples: [
+    '（语音示例）我午餐吃了鸡胸肉和糙米饭。',
+    '（语音示例）帮我算一下今天还能吃多少热量。',
+    '（语音示例）晚餐想吃得清淡点，有什么推荐？',
+  ],
+})
+
+function onMic() {
+  if (chat.sending) return
+  voiceStart()
+}
+async function onVoiceStop() {
+  const text = await voiceStop()
+  if (text) input.value = input.value ? `${input.value} ${text}` : text
+}
 </script>
 
 <template>
@@ -46,7 +74,7 @@ function onEnter(e: KeyboardEvent) {
       </div>
     </div>
 
-    <div class="input-box">
+    <div v-if="voiceState === 'idle'" class="input-box">
       <textarea
         v-model="input"
         class="input-area"
@@ -62,11 +90,20 @@ function onEnter(e: KeyboardEvent) {
         <button class="tool" title="视频上传（占位）" disabled>
           <img :src="icVideo" class="tool-ic" alt="" /> 视频上传
         </button>
-        <button class="tool" title="语音（占位）" disabled>
+        <button class="tool voice" title="语音输入" :disabled="chat.sending" @click="onMic">
           <img :src="icVoice" class="tool-ic" alt="" />
         </button>
       </div>
     </div>
+    <RecordingBar
+      v-else
+      :state="voiceState"
+      :duration-ms="voiceDuration"
+      :levels="voiceLevels"
+      :error-msg="voiceError"
+      @stop="onVoiceStop"
+      @cancel="voiceCancel"
+    />
 
     <transition name="fade">
       <div v-if="chat.sending || chat.lastReply" class="reply-bar">
@@ -76,7 +113,7 @@ function onEnter(e: KeyboardEvent) {
       </div>
     </transition>
 
-    <button class="send-btn" :disabled="chat.sending" @click="onSend">
+    <button class="send-btn" :disabled="chat.sending || voiceState !== 'idle'" @click="onSend">
       <img :src="icSend" class="send-ic" alt="" /> 发送
     </button>
   </SectionCard>
@@ -162,6 +199,13 @@ function onEnter(e: KeyboardEvent) {
   font-size: 13px;
   cursor: not-allowed;
   padding: 2px;
+}
+.tool.voice:not(:disabled) {
+  cursor: pointer;
+  color: var(--c-primary-hover);
+}
+.tool.voice:not(:disabled):hover {
+  color: var(--c-primary);
 }
 .tool-ic {
   width: 18px;

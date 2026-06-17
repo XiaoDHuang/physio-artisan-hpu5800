@@ -8,6 +8,8 @@ import iconPlus from '@/assets/chat/attachment-plus.png'
 import iconImage from '@/assets/chat/图片识别.png'
 import iconVideo from '@/assets/chat/视频上传.png'
 import iconVoice from '@/assets/chat/voice.png'
+import RecordingBar from '@/components/common/RecordingBar.vue'
+import { useVoiceInput } from '@/composables/useVoiceInput'
 
 const chat = useChatStore()
 const input = ref('')
@@ -36,6 +38,37 @@ function onEnter(e: KeyboardEvent) {
   e.preventDefault()
   onSend()
 }
+
+// 语音输入：空输入时点圆按钮=录音；有文字时=发送
+const {
+  state: voiceState,
+  durationMs: voiceDuration,
+  levels: voiceLevels,
+  errorMsg: voiceError,
+  start: voiceStart,
+  stop: voiceStop,
+  cancel: voiceCancel,
+} = useVoiceInput({
+  mockSamples: [
+    '（语音示例）如何提升我的睡眠质量？',
+    '（语音示例）帮我看看今天的运动达标了吗？',
+    '（语音示例）最近压力有点大，有什么调节建议？',
+  ],
+})
+
+function onMicOrSend() {
+  if (input.value.trim()) {
+    onSend()
+    return
+  }
+  if (chat.sending) return
+  voiceStart()
+}
+
+async function onVoiceStop() {
+  const text = await voiceStop()
+  if (text) input.value = input.value ? `${input.value} ${text}` : text
+}
 </script>
 
 <template>
@@ -59,8 +92,8 @@ function onEnter(e: KeyboardEvent) {
       </div>
     </div>
 
-    <!-- 输入框（含底部工具条）-->
-    <div class="input-box">
+    <!-- 输入框（含底部工具条）/ 录音条 -->
+    <div v-if="voiceState === 'idle'" class="input-box">
       <textarea
         v-model="input"
         class="input-area"
@@ -85,13 +118,22 @@ function onEnter(e: KeyboardEvent) {
         <button
           class="voice-btn"
           :class="{ active: input.trim() }"
-          :title="input.trim() ? '发送' : '语音（占位）'"
-          @click="onSend"
+          :title="input.trim() ? '发送' : '语音输入'"
+          @click="onMicOrSend"
         >
           <img :src="iconVoice" class="voice-img" alt="" />
         </button>
       </div>
     </div>
+    <RecordingBar
+      v-else
+      :state="voiceState"
+      :duration-ms="voiceDuration"
+      :levels="voiceLevels"
+      :error-msg="voiceError"
+      @stop="onVoiceStop"
+      @cancel="voiceCancel"
+    />
 
     <!-- 机器人回复（输入框下方，覆盖式单条）-->
     <transition name="fade">

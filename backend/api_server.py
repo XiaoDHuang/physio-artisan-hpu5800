@@ -28,7 +28,7 @@ from pathlib import Path
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -42,6 +42,7 @@ from agents.langgraph_agents import LangGraphHealthAgents
 from agents import intake
 from agents import health_data as hdata
 from agents.safety import screen_text
+from agents.asr import transcribe_audio, ASRError, ASRValidationError
 from store.safety_store import save_safety_log
 from store.postgres_store import load_latest_assessment
 
@@ -506,6 +507,70 @@ async def delete_conversation(conversation_id: str):
     return {"conversation_id": conversation_id, "status": "cleared"}
 
 
+# --------------------------- ASR 语音转文字 ---------------------------
+@app.post("/asr")
+async def asr(audio: UploadFile = File(...), audio_format: str = Form(default="", alias="format")):
+    """语音转文字端点。
+
+    multipart/form-data:
+        audio: 录音文件（webm/opus 等）
+        format: MIME 类型（如 audio/webm;codecs=opus）
+
+    返回: {"text": str, "duration_ms": int|None, "model": str}
+    """
+    if not audio or not audio.filename:
+        raise HTTPException(status_code=422, detail={"error": "未上传音频文件"})
+
+    mime = (audio_format or audio.content_type or "audio/webm").split(";")[0].strip()
+
+    max_bytes = int(config.ASR_MAX_MB * 1024 * 1024)
+
+    # 优先用 Starlette UploadFile.size 判大小（避免先全读再判内存峰值）
+    if hasattr(audio, "size") and audio.size is not None and audio.size > max_bytes:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": f"音频文件过大（最大 {config.ASR_MAX_MB}MB）"},
+        )
+
+    # 分块读取，累计超限立即中止（无 .size 或 .size 不可信时兜底）
+    try:
+        buf = bytearray()
+        while chunk := await audio.read(1 << 20):  # 1MB 步进
+            buf.extend(chunk)
+            if len(buf) > max_bytes:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"error": f"音频文件过大（最大 {config.ASR_MAX_MB}MB）"},
+                )
+        data = bytes(buf)
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error(f"[/asr] 读取音频失败: {e}")
+        raise HTTPException(status_code=422, detail={"error": f"读取音频文件失败: {e}"})
+
+    if not data:
+        raise HTTPException(status_code=422, detail={"error": "音频文件为空"})
+
+    api_logger.info(f"[/asr] 收到音频 {audio.filename} mime={mime} size={len(data)}")
+
+    # 异步调用 ASR（同步 IO 包到线程池；时长校验在 transcribe_audio 内部尽力估算）
+    try:
+        result = await asyncio.to_thread(transcribe_audio, data, mime, audio.filename or "recording.webm")
+    except ASRValidationError as e:
+        api_logger.warning(f"[/asr] 校验失败: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except ASRError as e:
+        api_logger.error(f"[/asr] ASR 服务异常: {e}")
+        raise HTTPException(status_code=e.status_code, detail={"error": str(e)})
+    except Exception as e:
+        api_logger.error(f"[/asr] 未知异常: {e}")
+        raise HTTPException(status_code=500, detail={"error": f"ASR 服务内部错误: {e}"})
+
+    api_logger.info(f"[/asr] 转写结果 model={result.get('model')} text_len={len(result.get('text',''))}")
+    return result
+
+
 # --------------------------- 健康检查 / 信息 ---------------------------
 @app.get("/health")
 async def health_check():
@@ -534,6 +599,7 @@ async def root():
             "nutrition": "/nutrition/{user_id} - 饮食管理页数据聚合(纯DB+mock, 含date参数)",
             "sleep_entry": "/sleep/entry - 手动录入睡眠记录(POST, 写watch_data JSONB)",
             "report_latest": "/report/latest/{user_id} - 最近一次报告(落库缓存)",
+            "asr": "/asr - 语音转文字(千问ASR)",
             "conversations": "/conversations - 会话历史",
             "docs": "/docs - API文档",
         },

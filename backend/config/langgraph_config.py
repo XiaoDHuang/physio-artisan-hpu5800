@@ -60,6 +60,17 @@ class LangGraphConfig:
     HOTEL_SEARCH_ENABLED = True        # 启用酒店搜索
     RESTAURANT_SEARCH_ENABLED = True   # 启用餐厅搜索
 
+    # ======================== ASR 语音识别配置 ========================
+    # 调用模式：transcriptions(OpenAI音频接口) | chat_audio(多模态chat base64)
+    ASR_MODE = os.getenv("ASR_MODE", "chat_audio")
+    ASR_MODEL = os.getenv("ASR_MODEL", "qwen3-omni-flash")
+    # ASR 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    ASR_BASE_URL = os.getenv("ASR_BASE_URL") or OPENAI_BASE_URL
+    ASR_API_KEY = os.getenv("ASR_API_KEY") or OPENAI_API_KEY
+    # 上传限制
+    ASR_MAX_SECONDS = int(os.getenv("ASR_MAX_SECONDS", "60"))
+    ASR_MAX_MB = float(os.getenv("ASR_MAX_MB", "10"))
+
     # 模型生成参数
     TEMPERATURE = 0.7    # 控制生成文本的随机性(0-1，越高越随机)
     MAX_TOKENS = 4000    # 最大生成token数
