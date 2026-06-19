@@ -10,6 +10,7 @@ import iconPlus from '@/assets/chat/attachment-plus.png'
 import iconImage from '@/assets/chat/图片识别.png'
 import iconVideo from '@/assets/chat/视频上传.png'
 import iconVoice from '@/assets/chat/voice.png'
+import iconSend from '@/assets/page-nutrition/发送按钮图标.svg'
 import RecordingBar from '@/components/common/RecordingBar.vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 
@@ -68,7 +69,7 @@ function onEnter(e: KeyboardEvent) {
   onSend()
 }
 
-// 语音输入：空输入时点圆按钮=录音；有文字时=发送
+// 语音输入：空输入时右侧圆按钮=录音；有文字时=发送（原位不变，图标随状态切换）
 const {
   state: voiceState,
   durationMs: voiceDuration,
@@ -150,9 +151,11 @@ async function onVoiceStop() {
           class="voice-btn"
           :class="{ active: input.trim() }"
           :title="input.trim() ? '发送' : '语音输入'"
+          :disabled="chat.sending"
           @click="onMicOrSend"
         >
-          <img :src="iconVoice" class="voice-img" alt="" />
+          <img v-if="input.trim()" :src="iconSend" class="voice-img send-mode" alt="" />
+          <img v-else :src="iconVoice" class="voice-img" alt="" />
         </button>
       </div>
     </div>
@@ -301,13 +304,21 @@ async function onVoiceStop() {
   cursor: pointer;
   transition: background 0.15s;
 }
+.voice-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .voice-btn.active {
-  background: var(--c-primary-soft);
+  background: var(--c-primary);
 }
 .voice-img {
   width: 20px;
   height: 20px;
   object-fit: contain;
+}
+.voice-img.send-mode {
+  width: 18px;
+  height: 18px;
 }
 
 /* 回复 */

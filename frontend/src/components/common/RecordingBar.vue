@@ -70,6 +70,7 @@ function fmt(ms: number): string {
   align-items: center;
   gap: 12px;
   min-height: 84px;
+  margin-top: 10px;
   padding: 0 16px;
   border: 1px solid var(--c-primary);
   border-radius: 16px;

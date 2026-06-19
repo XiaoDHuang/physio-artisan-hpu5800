@@ -14,9 +14,9 @@ export type VoiceState = 'idle' | 'requesting' | 'recording' | 'transcribing' | 
 // 置 false 需后端运行，纯前端演示可切回 true。
 const VOICE_USE_MOCK = false
 
-// 无麦克风/无权限时的演示回退：用合成波形模拟录音，停止后强制走 mock 转写，
-// 保证任何环境（含无麦克风）都能看到完整交互。有真麦克风时不触发；接 Layer 2 后如需严格可置 false。
-const VOICE_DEMO_FALLBACK = true
+// 无麦克风/无权限时的演示回退（仅 VOICE_USE_MOCK=true 时生效）。
+// 真实 ASR 模式下应置 false，否则会静默走 mock 转写、看不到 /api/asr 请求。
+const VOICE_DEMO_FALLBACK = false
 
 const BARS = 18 // 波形条数
 
@@ -31,6 +31,23 @@ function pickMime(): string {
     for (const c of cands) if (MediaRecorder.isTypeSupported(c)) return c
   }
   return ''
+}
+
+/** 启动录音前检查；返回可读错误文案，通过则返回 null */
+function getRecordingSupportError(): string | null {
+  if (typeof window === 'undefined') return '当前环境不支持录音'
+  // getUserMedia / MediaRecorder 仅在「安全上下文」可用（https 或 localhost/127.0.0.1）
+  if (!window.isSecureContext) {
+    const url = `${window.location.protocol}//${window.location.host}`
+    return `语音需要安全连接。当前 ${url} 不可用，请改用 http://localhost:8080 或 https 访问（勿用局域网 IP）`
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return '当前浏览器未开放麦克风 API，请用 Chrome / Edge 打开，并避免 IDE 内置预览窗'
+  }
+  if (typeof MediaRecorder === 'undefined') {
+    return '当前浏览器不支持录音编码（MediaRecorder），请升级 Chrome / Edge'
+  }
+  return null
 }
 
 let _mockIdx = 0
@@ -163,16 +180,16 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
     durationMs.value = 0
     state.value = 'requesting'
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-        throw new Error('当前浏览器不支持录音')
-      }
+      const supportErr = getRecordingSupportError()
+      if (supportErr) throw new Error(supportErr)
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mime = pickMime()
       recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size) chunks.push(e.data)
       }
-      recorder.start()
+      // 分片采集，避免极短录音 stop 时 ondataavailable 尚未触发导致空 Blob
+      recorder.start(250)
 
       // 实时波形
       const AC: typeof AudioContext =
@@ -194,8 +211,8 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
       loop()
     } catch (e: unknown) {
       cleanup()
-      if (VOICE_DEMO_FALLBACK) {
-        startSimulated() // 无麦克风/无权限 → 演示模拟录音
+      if (VOICE_USE_MOCK && VOICE_DEMO_FALLBACK) {
+        startSimulated() // 仅 mock 模式：无麦克风 → 演示模拟录音
         return
       }
       const name = (e as { name?: string })?.name
@@ -208,7 +225,7 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
       state.value = 'error'
       window.setTimeout(() => {
         if (state.value === 'error') state.value = 'idle'
-      }, 2500)
+      }, 4500)
     }
   }
 
@@ -258,6 +275,14 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
       state.value = 'idle'
       return null
     }
+    if (!simulated && blob.size < 512) {
+      errorMsg.value = '录音太短，请按住多说几秒'
+      state.value = 'error'
+      window.setTimeout(() => {
+        if (state.value === 'error') state.value = 'idle'
+      }, 4500)
+      return null
+    }
     try {
       const text = await transcribe(blob)
       const clean = (text || '').trim()
@@ -277,7 +302,7 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
       state.value = 'error'
       window.setTimeout(() => {
         if (state.value === 'error') state.value = 'idle'
-      }, 2500)
+      }, 4500)
       return null
     }
   }
@@ -301,6 +326,9 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
   }
 
   async function transcribe(blob: Blob): Promise<string> {
+    if (simulated && !VOICE_USE_MOCK) {
+      throw new Error('需要麦克风权限才能使用语音输入')
+    }
     if (VOICE_USE_MOCK || simulated) {
       await new Promise((r) => setTimeout(r, 1200))
       const samples =
@@ -326,7 +354,19 @@ export function useVoiceInput(opts: VoiceOptions = {}) {
     fd.append('audio', audioBlob, 'voice.wav')
     fd.append('format', sendMime || audioBlob.type || '')
     const resp = await fetch('/api/asr', { method: 'POST', body: fd })
-    if (!resp.ok) throw new Error('识别失败')
+    if (!resp.ok) {
+      let msg = '识别失败，请重试'
+      try {
+        const err = await resp.json()
+        const detail = err?.detail
+        if (typeof detail === 'string') msg = detail
+        else if (detail?.error) msg = detail.error
+        else if (err?.error) msg = err.error
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg)
+    }
     const data = await resp.json()
     return data.text || ''
   }
