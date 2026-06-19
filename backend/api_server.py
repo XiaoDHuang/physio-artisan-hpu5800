@@ -340,7 +340,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         await store.append(conversation_id, [
             {"role": "user", "content": request.message},
             {"role": "assistant", "content": block_reply},
-        ])
+        ], user_id=request.user_id)
         api_logger.warning(f"[/chat 会话 {conversation_id}] 安全熔断: {screen['category']} {screen['violations']}")
         return ChatResponse(conversation_id=conversation_id, intent="blocked",
                             data_type=None, reply=block_reply, can_proceed=False)
@@ -402,7 +402,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     await store.append(conversation_id, [
         {"role": "user", "content": request.message},
         {"role": "assistant", "content": resp.reply},
-    ])
+    ], user_id=request.user_id)
     return resp
 
 

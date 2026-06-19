@@ -3,7 +3,7 @@
 设计变更（统一持久化）：
 - 原先独立的 chat_conversations 表已废弃，会话历史统一收敛到项目既有的
   ai_conversations 表，按 session_id 维护（一会话一行，UPSERT 滑窗裁剪）。
-- 暂无用户态：所有会话归属到 seed_xiaoming.sql 插入的演示用户（小明 id=1）。
+- 会话 `user_id` 由 /chat 请求传入；缺省回落到演示用户（小明 id=1）。
 - 同一行还可回写一次健康决策的产出（training_plan / meal_plan / agent_decisions /
   safety_logs / recommendations / speech_report），实现"对话 + 报告"同源存档。
 
@@ -95,11 +95,17 @@ class PostgresConversationStore(ConversationStore):
             messages = json.loads(messages)
         return messages or []
 
-    async def append(self, conversation_id: str, messages: List[Dict[str, str]]) -> None:
+    async def append(
+        self,
+        conversation_id: str,
+        messages: List[Dict[str, str]],
+        user_id: Optional[int] = None,
+    ) -> None:
         if not messages:
             return
         await self._ensure_table()
         limit = self._max_messages
+        uid = user_id if user_id is not None else DEFAULT_USER_ID
 
         def upsert(conn):
             with conn.cursor() as cur:
@@ -109,6 +115,7 @@ class PostgresConversationStore(ConversationStore):
                     INSERT INTO ai_conversations (user_id, session_id, messages)
                     VALUES (%s, %s, %s)
                     ON CONFLICT (session_id) DO UPDATE SET
+                        user_id = EXCLUDED.user_id,
                         messages = (
                             SELECT to_jsonb(array_agg(m))
                             FROM (
@@ -125,7 +132,7 @@ class PostgresConversationStore(ConversationStore):
                             ) sub
                         )
                     """,
-                    (DEFAULT_USER_ID, conversation_id, Json(messages), limit),
+                    (uid, conversation_id, Json(messages), limit),
                 )
 
         await asyncio.to_thread(self._run, upsert)
@@ -212,6 +219,7 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
                      recommendations, training_plan, meal_plan, speech_report)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE SET
+                    user_id         = EXCLUDED.user_id,
                     agent_decisions = EXCLUDED.agent_decisions,
                     safety_logs     = EXCLUDED.safety_logs,
                     recommendations = EXCLUDED.recommendations,

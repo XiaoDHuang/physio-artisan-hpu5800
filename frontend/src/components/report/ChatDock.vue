@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // 底部聊天卡片：机器人问候 + 建议气泡 + 输入框（底部工具条）+ 回复（在输入框下方）
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import type { ChatSendContext } from '@/stores/chat'
-import { looksLikeReportRequest } from '@/copy/reportChat'
+import { looksLikeReportRequest, formatCnDate } from '@/copy/reportChat'
 import ReportTaskBanner from '@/components/common/ReportTaskBanner.vue'
 import robot from '@/assets/chat/robot.png'
 import iconPlus from '@/assets/chat/attachment-plus.png'
@@ -23,11 +23,18 @@ const props = defineProps<{
 const chat = useChatStore()
 const input = ref('')
 
-const suggestions = [
-  '帮我生成今天的健康体检报告',
+const reportGenerateSuggestion = computed(() => {
+  const d = props.reportDate?.trim()
+  if (!d) return '帮我生成今天的健康体检报告'
+  const day = formatCnDate(d)
+  return day === '今天' ? '帮我生成今天的健康体检报告' : `帮我生成${day}的健康体检报告`
+})
+
+const suggestions = computed(() => [
+  reportGenerateSuggestion.value,
   '如何提升睡眠质量？',
   '适合我的减脂计划是什么？',
-]
+])
 
 function chatCtx(): ChatSendContext {
   return {
