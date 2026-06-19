@@ -3,9 +3,7 @@ import { defineStore } from 'pinia'
 import { getExercise } from '@/api/exercise'
 import type { ExercisePage, SourceMap } from '@/api/types'
 import type { HttpError } from '@/api/http'
-
-// 暂无用户态，固定演示用户
-export const USER_ID = 1
+import { useUserStore } from '@/stores/user'
 
 export const useExerciseStore = defineStore('exercise', {
   state: () => ({
@@ -25,11 +23,14 @@ export const useExerciseStore = defineStore('exercise', {
   },
 
   actions: {
-    async load(userId: number = USER_ID) {
+    async load(userId?: number) {
+      const uid = userId ?? useUserStore().userId
       this.loading = true
       this.error = ''
+      this.data = null
+      this.sources = {}
       try {
-        const r = await getExercise(userId)
+        const r = await getExercise(uid)
         this.data = r.exercise
         this.sources = r.sources || {}
       } catch (e) {

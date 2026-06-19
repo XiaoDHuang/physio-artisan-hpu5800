@@ -9,9 +9,7 @@ import { defineStore } from 'pinia'
 import { getDashboard, getLatestReport } from '@/api/report'
 import type { Dashboard, ReportResult } from '@/api/types'
 import type { HttpError } from '@/api/http'
-
-// 暂无用户态，固定演示用户
-export const USER_ID = 1
+import { useUserStore } from '@/stores/user'
 
 export const useReportStore = defineStore('report', {
   state: () => ({
@@ -39,23 +37,27 @@ export const useReportStore = defineStore('report', {
   },
 
   actions: {
-    async load(userId: number = USER_ID) {
+    async load(userId?: number) {
+      const uid = userId ?? useUserStore().userId
       this.loading = true
       this.error = ''
+      this.dashboard = null
+      this.result = null
+      this.hasReport = false
       try {
         try {
-          const r = await getLatestReport(userId)
+          const r = await getLatestReport(uid)
           this.result = r
           this.hasReport = true
           this.dashboard = r?.final_report?.chart_data?.dashboard ?? null
           // 报告里若未带 dashboard，则回退看板接口补齐
           if (!this.dashboard) {
-            const d = await getDashboard(userId)
+            const d = await getDashboard(uid)
             this.dashboard = d.dashboard
           }
         } catch (e) {
           if ((e as HttpError)?.status === 404) {
-            const d = await getDashboard(userId)
+            const d = await getDashboard(uid)
             this.dashboard = d.dashboard
             this.hasReport = false
           } else {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useReportStore } from '@/stores/report'
+import { useUserStore } from '@/stores/user'
 import { useReportExport } from '@/composables/useReportExport'
 import AppHeader from '@/components/common/AppHeader.vue'
 import KpiCards from '@/components/report/KpiCards.vue'
@@ -14,6 +15,7 @@ import ExerciseCard from '@/components/report/ExerciseCard.vue'
 import ChatDock from '@/components/report/ChatDock.vue'
 
 const store = useReportStore()
+const userStore = useUserStore()
 const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice } = storeToRefs(store)
 
 const { isLoading, errorMsg, exportReportImage, downloadImage } = useReportExport()
@@ -22,6 +24,13 @@ const previewUrl = ref<string | null>(null)
 onMounted(() => {
   store.load()
 })
+
+watch(
+  () => userStore.reloadVersion,
+  () => {
+    previewUrl.value = null
+  },
+)
 
 async function onExport() {
   const url = await exportReportImage()

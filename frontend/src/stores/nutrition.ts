@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { getNutrition } from '@/api/nutrition'
 import type { NutritionPage, SourceMap } from '@/api/types'
 import type { HttpError } from '@/api/http'
-
-export const USER_ID = 1
+import { useUserStore } from '@/stores/user'
 
 // 'YYYY-MM-DD' 加减天数（本地时区）
 function shiftDate(dateStr: string, delta: number): string {
@@ -32,12 +31,15 @@ export const useNutritionStore = defineStore('nutrition', {
   },
 
   actions: {
-    async load(date?: string, userId: number = USER_ID) {
+    async load(date?: string, userId?: number) {
+      const uid = userId ?? useUserStore().userId
       if (date !== undefined) this.date = date
       this.loading = true
       this.error = ''
+      this.data = null
+      this.sources = {}
       try {
-        const r = await getNutrition(userId, this.date || undefined)
+        const r = await getNutrition(uid, this.date || undefined)
         this.data = r.nutrition
         this.sources = r.sources || {}
         this.date = r.date // 回显后端实际日期（缺省时取今天）

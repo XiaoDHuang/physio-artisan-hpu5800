@@ -19,6 +19,8 @@ env/
 node_modules/
 dist/
 
+backend/logs
+
 # OS
 .DS_Store
 Thumbs.db
