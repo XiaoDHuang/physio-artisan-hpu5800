@@ -81,13 +81,15 @@ export function useReportExport() {
     }
   }
 
-  /** 切日等场景：静默中止进行中的导出 */
+  /** 切日等场景：静默中止进行中的导出并重置按钮状态 */
   function cancelExportOnDateSwitch() {
     if (!isLoading.value) return
     abortSilently = true
     exportGeneration += 1
     activeController?.abort()
     activeController = null
+    isLoading.value = false
+    errorMsg.value = null
   }
 
   async function exportReportImage(): Promise<ExportOutcome | null> {
