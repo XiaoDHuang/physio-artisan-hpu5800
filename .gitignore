@@ -25,4 +25,13 @@ Thumbs.db
 
 demo/
 CLAUDE.local.md
-.claude
+AGENTS.local.md
+
+# AI agent symlinks (canonical source: .agents/) — run scripts/setup-agent-links.ps1
+.claude/commands
+.claude/skills
+.claude/settings.local.json
+.cursor/commands
+.cursor/skills
+.codex/commands
+.codex/skills
