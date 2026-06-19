@@ -137,9 +137,11 @@ def _generate_via_image_gen(prompt: str) -> bytes:
 
     payload = {
         "model": config.IMAGE_MODEL,
-        "prompt": prompt,
         "n": 1,
-        "size": config.IMAGE_SIZE,
+        "output_format": "png",
+        "prompt": prompt,
+        "quality": "auto",
+        "size": "auto",
         "response_format": "b64_json",
     }
 
