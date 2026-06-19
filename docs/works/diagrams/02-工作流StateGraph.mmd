@@ -1,0 +1,17 @@
+flowchart TD
+    START([用户请求 / mode]) --> DL["🧹 data_loader<br/>数据接入层<br/>DB优先+mock回退+确定性公式"]
+    DL --> PE["📊 physio_evaluator<br/>生理评估智能体<br/>CoT 解读 RS/疲劳红旗"]
+    PE -->|"条件边<br/>疲劳 高/中"| EC["🏋️ exercise_coach<br/>运动教练智能体<br/>调用 wger 工具降载"]
+    PE -->|"条件边<br/>疲劳 低"| MP["✅ maintain_plan<br/>维持/进阶力量计划"]
+    EC --> NP["🍽️ nutrition_planner<br/>膳食规划智能体<br/>调用 USDA 工具配平"]
+    NP --> SA["😴 sleep_advisor<br/>睡眠建议智能体"]
+    MP --> SA
+    SA --> GA["🛡️ guardrail_auditor<br/>安全审计智能体<br/>screen_text 红线扫描"]
+    GA -->|"命中红线"| BLK["⛔ 熔断：输出就医分流话术"]
+    GA -->|"安全通行"| RG["📑 report_generator<br/>报告生成智能体<br/>visual_metrics + vocal_narrative"]
+    BLK --> RG
+    RG --> END([多模态报告 JSON + chart_data])
+
+    style PE fill:#cde4ff
+    style GA fill:#ffd9d9
+    style RG fill:#d9ffe0
