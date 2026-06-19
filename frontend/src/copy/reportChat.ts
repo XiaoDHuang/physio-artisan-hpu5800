@@ -73,6 +73,14 @@ export function dateSwitchInfoToast(anchorDate: string): string {
   return `${formatCnDate(anchorDate)}的健康报告已生成，切换至该日期即可查看。`
 }
 
+export function exportDateSwitchInfoToast(anchorDate: string): string {
+  return `${formatCnDate(anchorDate)}的报告图片已生成，切换至该日期后可再次导出查看。`
+}
+
+export function exportSuccessToast(anchorDate: string): string {
+  return `${formatCnDate(anchorDate)}的报告图片已生成`
+}
+
 export function completedBanner(anchorDate: string): string {
   return `✅ ${formatCnDate(anchorDate)}报告已生成`
 }

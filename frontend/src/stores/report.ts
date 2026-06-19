@@ -52,6 +52,8 @@ export const useReportStore = defineStore('report', {
       return cards?.health_advice ?? null
     },
     isToday: (s) => !s.date || s.date >= todayLocal(),
+    /** 当前看板日已有 AI 报告缓存时可导出图片 */
+    canExportReport: (s) => s.hasReport && !s.loading && Boolean(s.date),
   },
 
   actions: {

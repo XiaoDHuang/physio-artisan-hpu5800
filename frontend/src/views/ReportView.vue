@@ -18,7 +18,7 @@ import ChatDock from '@/components/report/ChatDock.vue'
 const store = useReportStore()
 const userStore = useUserStore()
 const chat = useChatStore()
-const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice, date, loading, isToday, hasReport } =
+const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice, date, loading, isToday, hasReport, canExportReport } =
   storeToRefs(store)
 
 const reportDatePill = computed(() => (date.value ? `${date.value}健康数据` : '健康数据'))
@@ -29,8 +29,16 @@ const reportDateDisplay = computed(() => {
   return `${y} - ${m} - ${day}`
 })
 
-const { isLoading, errorMsg, exportReportImage, downloadImage } = useReportExport()
+const { isLoading, errorMsg, exportReportImage, cancelExportOnDateSwitch, downloadImage, filenameForDate, noReportMessage } =
+  useReportExport()
 const previewUrl = ref<string | null>(null)
+const previewAnchorDate = ref<string | null>(null)
+
+function closePreview() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = null
+  previewAnchorDate.value = null
+}
 
 onMounted(() => {
   store.load()
@@ -39,30 +47,29 @@ onMounted(() => {
 watch(
   () => userStore.reloadVersion,
   () => {
-    previewUrl.value = null
+    closePreview()
   },
 )
 
-// 场景 1：报告生成中切换日期 — 清 Chat 展示态，任务继续
 watch(
   () => date.value,
   (next, prev) => {
-    if (prev && next !== prev && chat.isReportRunning) {
-      chat.clearConversationUi()
+    if (prev && next !== prev) {
+      closePreview()
+      cancelExportOnDateSwitch()
+      if (chat.isReportRunning) {
+        chat.clearConversationUi()
+      }
     }
   },
 )
 
 async function onExport() {
-  const url = await exportReportImage()
-  if (url) {
-    previewUrl.value = url
+  const outcome = await exportReportImage()
+  if (outcome?.kind === 'preview') {
+    previewUrl.value = outcome.url
+    previewAnchorDate.value = outcome.anchorDate
   }
-}
-
-function closePreview() {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = null
 }
 
 async function onReportComplete() {
@@ -90,7 +97,12 @@ async function onReportComplete() {
           </span>
           <button type="button" class="hdr-nav" :disabled="loading || isToday" title="后一天" @click="store.nextDay()">›</button>
         </span>
-        <button class="hdr-export" :disabled="isLoading" @click="onExport">
+        <button
+          class="hdr-export"
+          :disabled="isLoading || loading || !canExportReport"
+          :title="canExportReport ? '导出当前日期的 AI 健康报告图片' : noReportMessage"
+          @click="onExport"
+        >
           <svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -139,7 +151,12 @@ async function onReportComplete() {
         <div class="preview-box">
           <img :src="previewUrl" class="preview-img" alt="报告图片" />
           <div class="preview-actions">
-            <button class="preview-btn" @click="downloadImage(previewUrl!, '健康报告-' + new Date().toISOString().slice(0,10) + '.png')">下载</button>
+            <button
+              class="preview-btn"
+              @click="downloadImage(previewUrl!, filenameForDate(previewAnchorDate || date || ''))"
+            >
+              下载
+            </button>
             <button class="preview-btn secondary" @click="closePreview">关闭</button>
           </div>
         </div>

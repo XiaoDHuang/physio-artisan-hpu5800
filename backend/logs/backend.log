@@ -340,3 +340,81 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-19 20:44:54 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 睡前减少蓝光暴露。
 2026-06-19 20:44:54 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
 2026-06-19 20:44:58 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:45:50 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:45:52 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:45:56 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复评分很高，但连续3天静息心率升高可能暗示身体正在应对潜在的压力或疲劳，需要注意休息和恢复。
+2026-06-19 20:45:56 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:45:56 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 你好
+2026-06-19 20:46:04 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:46:18 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:46:21 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 提高深睡比例
+2026-06-19 20:46:21 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:46:26 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:47:58 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:48:01 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:48:03 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复状态非常良好，但连续3天静息心率偏高，可能暗示身体仍在适应近期的训练压力或其他外部因素。
+2026-06-19 20:48:03 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:48:08 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:48:13 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:48:16 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 今晚优先在睡前1小时减少蓝光暴露。
+2026-06-19 20:48:16 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:48:32 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:49:29 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:49:31 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:49:35 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复状态表现良好，但静息心率已连续3天升高，提示可能存在中枢疲劳迹象，建议关注近期的训练和生活压力调整。
+2026-06-19 20:49:35 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:49:46 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:49:50 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=129.6g 油脂代偿=否
+2026-06-19 20:49:52 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 提高深睡比例。
+2026-06-19 20:49:52 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:50:01 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:50:48 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:50:51 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:50:53 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 虽然整体恢复分数很高，但静息心率连续3天升高，可能表明身体正在应对某种压力或恢复负担，建议适当关注休息和调整训练强度。
+2026-06-19 20:50:53 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:50:59 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:51:02 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:51:06 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 优化深睡比例。
+2026-06-19 20:51:06 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:51:10 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:51:23 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 如何提升睡眠质量？
+2026-06-19 20:51:30 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 适合我的减脂计划是什么？
+2026-06-19 20:51:32 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:51:34 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 虽然总体恢复状态非常好，但连续3天静息心率偏高表明可能存在一定的中枢疲劳迹象，建议关注近期的训练强度与休息质量。
+2026-06-19 20:51:34 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:51:48 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:51:55 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:51:57 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 今晚优先减少睡前蓝光暴露以提升深睡比例。
+2026-06-19 20:51:57 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:51:59 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 你好
+2026-06-19 20:52:01 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:52:09 - api_server - INFO - [/tts] 合成请求 text_len=290
+2026-06-19 20:52:19 - tts - INFO - TTS 合成成功（audio_speech），1090080 字节
+2026-06-19 20:52:19 - api_server - INFO - [/tts] 合成成功 audio_bytes=1090080
+2026-06-19 20:52:33 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:52:36 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:52:37 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体恢复状态很好，但静息心率连续3天升高，可能暗示身体有轻微的压力或中枢疲劳积累。
+2026-06-19 20:52:37 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:52:44 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:52:46 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:52:48 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 尽量在23:00前上床入睡，固定作息时间。
+2026-06-19 20:52:48 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:52:52 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:53:12 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:53:15 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-17 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=98.6 HRR=22 TRIMP=318 疲劳红旗=1项 -> medium
+2026-06-19 20:53:18 - health_agents - INFO - [physio_evaluator] RS=98.6 疲劳=medium | 尽管整体身体恢复状态不错，但静息心率连续3天升高，可能表明中枢系统存在一定的压力或疲劳积累。
+2026-06-19 20:53:18 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:53:23 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:53:26 - health_agents - INFO - [nutrition_planner] 目标热量=1850kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:53:29 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分82): 睡前减少蓝光暴露。
+2026-06-19 20:53:29 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:53:33 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:55:04 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 帮我生成今天的健康体检报告
+2026-06-19 20:55:06 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-17 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=98.6 HRR=22 TRIMP=318 疲劳红旗=1项 -> medium
+2026-06-19 20:55:09 - health_agents - INFO - [physio_evaluator] RS=98.6 疲劳=medium | 您的整体恢复状态很好，但最近3天静息心率持续升高，可能是身体在应对某种轻微压力或疲劳积累的信号，请适当关注休息和调整训练强度。
+2026-06-19 20:55:09 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:55:12 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:55:23 - health_agents - INFO - [nutrition_planner] 目标热量=2288kcal 蛋白=144g 油脂代偿=否
+2026-06-19 20:55:26 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分82): 优化深睡比例
+2026-06-19 20:55:26 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:55:32 - health_agents - INFO - [report_generator] 生成多模态体检报告

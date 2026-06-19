@@ -29,6 +29,8 @@ demo/
 CLAUDE.local.md
 AGENTS.local.md
 
+logs/backend.log
+
 # AI agent symlinks (canonical source: .agents/) — run scripts/setup-agent-links.ps1
 .claude/commands
 .claude/skills
