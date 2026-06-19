@@ -112,7 +112,7 @@ export function useReportExport() {
     activeController?.abort()
     const controller = new AbortController()
     activeController = controller
-    const timeout = setTimeout(() => controller.abort(), 120000)
+    const timeout = setTimeout(() => controller.abort(), 210000)
 
     try {
       const resp = await fetch('/api/report-image', {

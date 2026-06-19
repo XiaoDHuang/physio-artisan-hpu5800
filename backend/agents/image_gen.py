@@ -8,7 +8,6 @@
 import json
 import logging
 import time
-from typing import Optional
 
 import requests
 
@@ -56,6 +55,8 @@ def _post_with_retry(method, url, **kwargs):
                 time.sleep(delay)
                 continue
             return resp
+        except requests.Timeout:
+            raise
         except requests.RequestException:
             if attempt < max_retries:
                 delay = delays[attempt]
@@ -127,6 +128,64 @@ def build_report_prompt(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _is_gpt_image_v2(model: str) -> bool:
+    return (model or "").strip().lower().startswith("gpt-image-2")
+
+
+def _build_generation_payload(prompt: str) -> dict:
+    """按模型版本构造 /images/generations 请求体。"""
+    model = (config.IMAGE_MODEL or "gpt-image-2").strip()
+    size = (config.IMAGE_SIZE or "").strip()
+    quality = (config.IMAGE_QUALITY or "").strip()
+    thinking = (config.IMAGE_THINKING or "").strip()
+
+    if _is_gpt_image_v2(model):
+        # gpt-image-2 / apiyi：无 auto、output_format、response_format；默认返回 url
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size or "1024x1024",
+            "quality": quality or "medium",
+        }
+        if thinking and thinking.lower() != "off":
+            payload["thinking"] = thinking
+        return payload
+
+    # gpt-image-1.x 等旧模型
+    return {
+        "model": model,
+        "n": 1,
+        "output_format": "png",
+        "prompt": prompt,
+        "quality": quality or "auto",
+        "size": size or "auto",
+        "response_format": "b64_json",
+    }
+
+
+def _parse_image_response(body: dict) -> bytes:
+    """从 /images/generations 响应提取 PNG 字节（支持 b64_json 或 url）。"""
+    try:
+        item = body["data"][0]
+    except (KeyError, IndexError) as e:
+        raise ImageGenError("图片生成响应格式错误：缺少 data") from e
+
+    b64 = item.get("b64_json")
+    if b64:
+        import base64
+        return base64.b64decode(b64)
+
+    img_url = item.get("url")
+    if img_url:
+        img_resp = requests.get(img_url, timeout=60)
+        if img_resp.ok:
+            return img_resp.content
+        raise ImageGenError(f"图片 URL 下载失败: HTTP {img_resp.status_code}")
+
+    raise ImageGenError("图片生成响应解析失败：未找到 b64_json 或 url")
+
+
 def _generate_via_image_gen(prompt: str) -> bytes:
     """POST /images/generations 图片生成。
 
@@ -135,15 +194,15 @@ def _generate_via_image_gen(prompt: str) -> bytes:
     base_url = config.IMAGE_BASE_URL.rstrip("/")
     url = f"{base_url}/images/generations"
 
-    payload = {
-        "model": config.IMAGE_MODEL,
-        "n": 1,
-        "output_format": "png",
-        "prompt": prompt,
-        "quality": "auto",
-        "size": "auto",
-        "response_format": "b64_json",
-    }
+    payload = _build_generation_payload(prompt)
+    logger.info(
+        f"Image Gen 调用 model={payload.get('model')} "
+        f"size={payload.get('size')} quality={payload.get('quality')} "
+        f"thinking={payload.get('thinking', '—')}"
+    )
+
+    timeout = config.IMAGE_TIMEOUT
+    logger.info(f"Image Gen 超时设置: {timeout}s")
 
     try:
         resp = _post_with_retry("POST", url,
@@ -152,36 +211,31 @@ def _generate_via_image_gen(prompt: str) -> bytes:
                 "Authorization": f"Bearer {config.IMAGE_API_KEY}",
                 "Content-Type": "application/json",
             },
-            timeout=90,
+            timeout=timeout,
         )
+    except requests.Timeout as e:
+        logger.error(f"Image Gen 上游超时（>{timeout}s）: {e}")
+        raise ImageGenError(f"图片生成超时（>{timeout}秒），可尝试降低 IMAGE_QUALITY 或 IMAGE_THINKING") from e
     except requests.RequestException as e:
         logger.error(f"Image Gen image_gen 请求失败: {e}")
         raise ImageGenError(f"图片生成服务请求失败: {e}") from e
 
     if not resp.ok:
-        logger.error(f"Image Gen image_gen 上游错误 {resp.status_code}: {resp.text[:300]}")
-        raise ImageGenError(f"图片生成服务返回 {resp.status_code}")
+        detail = resp.text[:500]
+        logger.error(f"Image Gen 上游错误 {resp.status_code}: {detail}")
+        raise ImageGenError(f"图片生成服务返回 {resp.status_code}: {detail}", status_code=502)
 
     try:
         body = resp.json()
-        b64 = body["data"][0].get("b64_json", "") or body["data"][0].get("url", "")
-        if b64:
-            import base64
-            return base64.b64decode(b64)
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        logger.error(f"Image Gen image_gen 解析失败: {e}")
-
-    # 尝试 url 下载
-    try:
-        img_url = resp.json()["data"][0].get("url", "")
-        if img_url:
-            img_resp = requests.get(img_url, timeout=30)
-            if img_resp.ok:
-                return img_resp.content
-    except Exception:
-        pass
-
-    raise ImageGenError("图片生成响应解析失败：未找到图片数据")
+        return _parse_image_response(body)
+    except json.JSONDecodeError as e:
+        logger.error(f"Image Gen 响应非 JSON: {e}")
+        raise ImageGenError("图片生成响应解析失败：非 JSON") from e
+    except ImageGenError:
+        raise
+    except Exception as e:
+        logger.error(f"Image Gen 解析异常: {e}")
+        raise ImageGenError(f"图片生成响应解析失败: {e}") from e
 
 
 def generate_report_image(data: dict) -> bytes:
