@@ -2,6 +2,7 @@
 // 能康助手：复用 useChatStore 的单轮覆盖交互，按饮食页样式呈现
 import { ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import ReportTaskBanner from '@/components/common/ReportTaskBanner.vue'
 import SectionCard from '@/components/report/SectionCard.vue'
 import robot from '@/assets/page-nutrition/机器人.png'
 import icImage from '@/assets/page-nutrition/图片识别.png'
@@ -74,6 +75,8 @@ async function onVoiceStop() {
       </div>
     </div>
 
+    <ReportTaskBanner />
+
     <div v-if="voiceState === 'idle'" class="input-box">
       <textarea
         v-model="input"
@@ -108,7 +111,7 @@ async function onVoiceStop() {
     <transition name="fade">
       <div v-if="chat.sending || chat.lastReply" class="reply-bar">
         <span class="reply-tag">AI</span>
-        <span v-if="chat.sending" class="reply-text thinking">正在思考…</span>
+        <span v-if="chat.sending" class="reply-text thinking">正在理解你的需求…</span>
         <span v-else class="reply-text" :class="{ blocked: chat.lastIntent === 'blocked' }">{{ chat.lastReply }}</span>
       </div>
     </transition>

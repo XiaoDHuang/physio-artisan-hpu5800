@@ -87,6 +87,7 @@ class HealthAgentState(TypedDict):
     # 输入
     user_id: int
     mode: str                       # control | experiment
+    on_date: str                    # 报告锚点日 YYYY-MM-DD
     user_query: str                 # 用户自由提问（可选，供安全审计/报告参考）
 
     # 数据接入层产出
@@ -213,14 +214,14 @@ class LangGraphHealthAgents:
     def _data_loader_node(self, state: HealthAgentState) -> HealthAgentState:
         user_id = state.get("user_id", 1)
         mode = state.get("mode", "control")
+        on_date = state.get("on_date") or None
 
-        # 复用确定性派生（与报告双场景对比同源，避免逻辑漂移）
-        m = hdata.compute_metrics(user_id, mode)
+        m = hdata.compute_metrics(user_id, mode, on_date=on_date)
         snap, derived = m["snapshot"], m["derived"]
 
         chain = state.get("reasoning_chain", [])
         chain.append(
-            f"[数据接入] user={user_id} mode={mode} 来源={snap['sources']} | "
+            f"[数据接入] user={user_id} mode={mode} date={on_date or 'latest'} 来源={snap['sources']} | "
             f"RS={derived['rs']} HRR={derived['hrr']} TRIMP={derived['trimp']} "
             f"疲劳红旗={derived['flag_count']}项 -> {derived['fatigue']}"
         )
@@ -566,12 +567,17 @@ class LangGraphHealthAgents:
         """
         user_id = request.get("user_id", 1)
         mode = request.get("mode", "control")
+        on_date = request.get("on_date") or request.get("anchor_date")
         user_query = request.get("user_query", "")
         session_id = request.get("session_id", "")
 
+        from datetime import date as _date
+        anchor = on_date or _date.today().isoformat()
+
         initial_state: HealthAgentState = {
-            "messages": [HumanMessage(content=f"请对 user={user_id} (mode={mode}) 进行健康决策评估")],
-            "user_id": user_id, "mode": mode, "user_query": user_query,
+            "messages": [HumanMessage(
+                content=f"请对 user={user_id} (mode={mode}, 锚点日={anchor}) 进行健康决策评估")],
+            "user_id": user_id, "mode": mode, "on_date": anchor, "user_query": user_query,
             "snapshot": {}, "derived": {},
             "physio_assessment": {}, "fatigue_level": "low",
             "training_plan": {}, "meal_plan": {}, "sleep_advice": {},
@@ -591,6 +597,8 @@ class LangGraphHealthAgents:
             result = {
                 "success": True,
                 "mode": mode,
+                "anchor_date": anchor,
+                "on_date": anchor,
                 "physio_assessment": final.get("physio_assessment", {}),
                 "fatigue_level": final.get("fatigue_level"),
                 "training_plan": final.get("training_plan", {}),

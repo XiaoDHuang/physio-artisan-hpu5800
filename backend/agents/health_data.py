@@ -123,15 +123,21 @@ def get_user_profile(user_id: int) -> Dict[str, Any]:
     return p
 
 
-def _compute_baselines(user_id: int) -> Dict[str, Optional[float]]:
-    """从历史 watch_data（排除最新一行）估算个人基线；样本不足返回 None。"""
-    rows = _query_all(
-        "SELECT heart_rate_rest, hrv_data FROM watch_data "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT 8",
-        (user_id,),
-    )
-    # 至少需要 2 条历史(除今日)才能算基线
-    hist = rows[1:] if len(rows) >= 2 else []
+def _compute_baselines(user_id: int, on_date: Optional[str] = None) -> Dict[str, Optional[float]]:
+    """从历史 watch_data（锚点日之前）估算个人基线；样本不足返回 None。"""
+    if on_date:
+        rows = _query_all(
+            "SELECT heart_rate_rest, hrv_data FROM watch_data "
+            "WHERE user_id = %s AND date < %s ORDER BY date DESC LIMIT 8",
+            (user_id, on_date),
+        )
+    else:
+        rows = _query_all(
+            "SELECT heart_rate_rest, hrv_data FROM watch_data "
+            "WHERE user_id = %s ORDER BY date DESC LIMIT 8",
+            (user_id,),
+        )
+    hist = rows[1:] if (not on_date and len(rows) >= 2) else rows
     if not hist:
         return {"hrv_baseline": None, "rhr_baseline": None}
     rhr_vals = [r["heart_rate_rest"] for r in hist if r.get("heart_rate_rest")]
@@ -143,11 +149,14 @@ def _compute_baselines(user_id: int) -> Dict[str, Optional[float]]:
     }
 
 
-def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, Any]:
-    """聚合某用户某场景下的全部原始指标，供编排层注入各智能体。
+def get_health_snapshot(user_id: int, mode: Optional[str] = None,
+                        on_date: Optional[str] = None) -> Dict[str, Any]:
+    """聚合某用户某场景下、截至锚点日的全部原始指标，供编排层注入各智能体。
 
-    DB 优先逐项读取（watch_data / exercise_records / nutrition_logs / users），
-    任一项缺失即用 mode 对应的 mock 场景补齐，并在 `sources` 中标注每项来源。
+    on_date 缺省时与现网一致（取最新一行）。指定锚点日时：
+    - watch / exercise：date <= on_date 的最近一条
+    - nutrition：date = on_date 当天
+    - baseline：date < on_date 的历史行
 
     Returns: {
         sleep_score, hrv_today, hrv_baseline, rhr_today, rhr_baseline, rhr_trend_up_3d,
@@ -160,12 +169,19 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
     scen = MOCK_SCENARIOS[mode]
     sources: Dict[str, str] = {}
 
-    # --- 穿戴数据：watch_data 最新一行 ---
-    watch_row = _query_one(
-        "SELECT date, heart_rate_rest, hrv_data, sleep_data FROM watch_data "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
-        (user_id,),
-    )
+    # --- 穿戴数据：锚点日及以前最近一行 ---
+    if on_date:
+        watch_row = _query_one(
+            "SELECT date, heart_rate_rest, hrv_data, sleep_data, weight_kg, body_fat_pct "
+            "FROM watch_data WHERE user_id = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+            (user_id, on_date),
+        )
+    else:
+        watch_row = _query_one(
+            "SELECT date, heart_rate_rest, hrv_data, sleep_data, weight_kg, body_fat_pct "
+            "FROM watch_data WHERE user_id = %s ORDER BY date DESC LIMIT 1",
+            (user_id,),
+        )
     if watch_row:
         sleep = watch_row.get("sleep_data") or {}
         hrv = watch_row.get("hrv_data") or {}
@@ -180,20 +196,28 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
         watch = dict(scen["watch"])
         sources["watch"] = "mock"
 
-    # --- 个人基线：历史 watch_data 计算，不足则用工具默认基线 ---
-    baselines = _compute_baselines(user_id)
+    # --- 个人基线：锚点日之前的历史 watch_data ---
+    baselines = _compute_baselines(user_id, on_date)
     if baselines["hrv_baseline"] is not None:
         sources["baseline"] = "db"
     else:
         sources["baseline"] = "default"  # 由 health_tools 默认基线兜底
 
-    # --- 运动负荷：exercise_records（结构化列优先，回退 analysis_result）---
-    ex_row = _query_one(
-        "SELECT actual_duration_min, peak_hr, hr_60s_after, actual_rpe, "
-        "calories_burned, analysis_result FROM exercise_records "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
-        (user_id,),
-    )
+    # --- 运动负荷：锚点日及以前最近一条 ---
+    if on_date:
+        ex_row = _query_one(
+            "SELECT actual_duration_min, peak_hr, hr_60s_after, actual_rpe, "
+            "calories_burned, analysis_result FROM exercise_records "
+            "WHERE user_id = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+            (user_id, on_date),
+        )
+    else:
+        ex_row = _query_one(
+            "SELECT actual_duration_min, peak_hr, hr_60s_after, actual_rpe, "
+            "calories_burned, analysis_result FROM exercise_records "
+            "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
+            (user_id,),
+        )
     ex_data = (ex_row or {}).get("analysis_result") or {}
     if ex_row:
         exercise = {
@@ -211,13 +235,20 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
         exercise = dict(scen["exercise"])
         sources["exercise"] = "mock"
 
-    # --- 饮食描述：nutrition_logs(recognized_foods/nutrition_result JSONB) ---
-    nut_row = _query_one(
-        "SELECT recognized_foods, nutrition_result, total_calories_actual, "
-        "narrative FROM nutrition_logs "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
-        (user_id,),
-    )
+    # --- 饮食描述：锚点日当天 nutrition_logs ---
+    if on_date:
+        nut_row = _query_one(
+            "SELECT recognized_foods, nutrition_result, total_calories_actual, "
+            "narrative FROM nutrition_logs WHERE user_id = %s AND date = %s",
+            (user_id, on_date),
+        )
+    else:
+        nut_row = _query_one(
+            "SELECT recognized_foods, nutrition_result, total_calories_actual, "
+            "narrative FROM nutrition_logs "
+            "WHERE user_id = %s ORDER BY date DESC LIMIT 1",
+            (user_id,),
+        )
     diet_narrative = None
     if nut_row:
         # 优先取 narrative 结构化列，回退 nutrition_result.diet_narrative / recognized_foods
@@ -233,13 +264,19 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
         diet_narrative = scen["diet"]["diet_narrative"]
         sources["diet"] = "mock"
 
-    # --- 身体测量：users.weight_kg；body_fat_pct 现已接入结构化列 ---
+    # --- 身体测量：锚点日 watch 行优先，否则 users 画像 ---
     profile = get_user_profile(user_id)
-    weight_kg = profile.get("weight_kg") or scen["body"]["weight_kg"]
-    body_fat_pct = profile.get("body_fat_pct") or scen["body"]["body_fat_pct"]
-    # body 来源以体重/体脂的真实来源为准
-    src_body = profile.get("_source", "mock")
-    sources["body"] = src_body if profile.get("weight_kg") else "mock"
+    if watch_row and watch_row.get("weight_kg") is not None:
+        weight_kg = watch_row["weight_kg"]
+        sources["body"] = "db"
+    else:
+        weight_kg = profile.get("weight_kg") or scen["body"]["weight_kg"]
+        src_body = profile.get("_source", "mock")
+        sources["body"] = src_body if profile.get("weight_kg") else "mock"
+    if watch_row and watch_row.get("body_fat_pct") is not None:
+        body_fat_pct = watch_row["body_fat_pct"]
+    else:
+        body_fat_pct = profile.get("body_fat_pct") or scen["body"]["body_fat_pct"]
 
     return {
         # 穿戴
@@ -262,10 +299,12 @@ def get_health_snapshot(user_id: int, mode: Optional[str] = None) -> Dict[str, A
         "mode": mode,
         "sources": sources,
         "profile": profile,
+        "on_date": on_date,
     }
 
 
-def compute_metrics(user_id: int, mode: Optional[str] = None) -> Dict[str, Any]:
+def compute_metrics(user_id: int, mode: Optional[str] = None,
+                    on_date: Optional[str] = None) -> Dict[str, Any]:
     """读取快照并用确定性公式派生全部生理指标（拒绝 LLM 口算）。
 
     供生理评估节点与报告数据契约（双场景对比）共同复用，避免派生逻辑漂移。
@@ -274,7 +313,7 @@ def compute_metrics(user_id: int, mode: Optional[str] = None) -> Dict[str, Any]:
     """
     from agents import health_tools as tools  # 延迟导入，避免循环
 
-    snap = get_health_snapshot(user_id, mode)
+    snap = get_health_snapshot(user_id, mode, on_date)
     profile = snap["profile"]
 
     hrv_baseline = snap["hrv_baseline"] or tools.DEFAULT_HRV_BASELINE
@@ -1154,19 +1193,30 @@ def get_nutrition_overview(user_id: int, on_date: Optional[str] = None) -> Dict[
     }
 
 
-def get_week_overview(user_id: int, days: int = 14) -> Dict[str, Any]:
-    """聚合最近 days 天（本周+上周）数据，产出仪表盘各面板。
+def get_week_overview(user_id: int, days: int = 14, on_date: Optional[str] = None) -> Dict[str, Any]:
+    """聚合以 on_date 为锚点的最近 days 天数据，产出仪表盘各面板。
 
+    on_date 缺省为今天；锚点日作为「当日」面板，并以锚点日前 7 天 / 再前 7 天做周对比。
     返回面板：kpi / body_overview / sleep / nutrition / exercise_today / week_summary。
     无历史数据时各字段尽量回退 None，不抛异常。
     """
+    from datetime import date, timedelta
     from agents import health_tools as tools
+
+    def _as_date(val) -> date:
+        if isinstance(val, date):
+            return val
+        return date.fromisoformat(str(val))
+
+    anchor = _as_date(on_date) if on_date else date.today()
+    window = max(days, 14)
+    start = anchor - timedelta(days=window - 1)
 
     rows = _query_all(
         "SELECT date, steps, exercise_minutes, calories_burned, heart_rate_avg, "
-        "heart_rate_rest, hrv_data, sleep_data FROM watch_data "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT %s",
-        (user_id, days),
+        "heart_rate_rest, hrv_data, sleep_data, weight_kg, body_fat_pct FROM watch_data "
+        "WHERE user_id = %s AND date >= %s AND date <= %s ORDER BY date DESC",
+        (user_id, start, anchor),
     )
     profile = get_user_profile(user_id)
     g = _get_goals(profile)  # 统一缺省常量 10000/60/2000/500
@@ -1174,12 +1224,15 @@ def get_week_overview(user_id: int, days: int = 14) -> Dict[str, Any]:
     steps_goal = g["steps_goal"]
     ex_goal = g["exercise_minutes_goal"]
 
-    # 最新一天（今日面板）
-    latest = rows[0] if rows else {}
+    # 锚点日（所选日期）面板；无行则各字段回退空
+    latest = next((r for r in rows if _as_date(r["date"]) == anchor), {})
     sleep = (latest.get("sleep_data") or {}) if latest else {}
 
-    this_week = rows[:7]
-    last_week = rows[7:14]
+    this_week_start = anchor - timedelta(days=6)
+    last_week_end = this_week_start - timedelta(days=1)
+    last_week_start = last_week_end - timedelta(days=6)
+    this_week = [r for r in rows if this_week_start <= _as_date(r["date"]) <= anchor]
+    last_week = [r for r in rows if last_week_start <= _as_date(r["date"]) <= last_week_end]
 
     def _week_stats(wk):
         if not wk:
@@ -1199,15 +1252,16 @@ def get_week_overview(user_id: int, days: int = 14) -> Dict[str, Any]:
 
     tw, lw = _week_stats(this_week), _week_stats(last_week)
 
-    weight = profile.get("weight_kg")
+    weight = latest.get("weight_kg") if latest.get("weight_kg") is not None else profile.get("weight_kg")
+    body_fat = latest.get("body_fat_pct") if latest.get("body_fat_pct") is not None else profile.get("body_fat_pct")
     bmi = tools.calc_bmi(weight, profile.get("height_cm", 175)) if weight else None
     bmr = tools.calc_bmr(weight, profile.get("height_cm", 175),
                          profile.get("age", 30), profile.get("gender", "male")) if weight else None
 
-    # 最新营养
+    # 锚点日营养
     nut = _query_one(
         "SELECT nutrition_result, balance_score FROM nutrition_logs "
-        "WHERE user_id = %s ORDER BY date DESC LIMIT 1", (user_id,))
+        "WHERE user_id = %s AND date = %s", (user_id, anchor))
     nr = (nut or {}).get("nutrition_result") or {}
     total_cal = nr.get("total_calories")
     p, c, f = nr.get("protein_g"), nr.get("carbs_g"), nr.get("fat_g")
@@ -1231,9 +1285,9 @@ def get_week_overview(user_id: int, days: int = 14) -> Dict[str, Any]:
         "body_overview": {
             "heart_rate": latest.get("heart_rate_avg") or latest.get("heart_rate_rest"),
             "weight_kg": weight, "bmi": bmi, "bmr": bmr,
-            "body_fat_pct": profile.get("body_fat_pct"),
+            "body_fat_pct": body_fat,
             "muscle_mass_kg": profile.get("muscle_mass_kg"),
-            "update_date": str(latest.get("date")) if latest else None,
+            "update_date": anchor.isoformat(),
         },
         "sleep": {
             "score": sleep.get("sleep_score"), "total_hours": sleep.get("total_hours"),

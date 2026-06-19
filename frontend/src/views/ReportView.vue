@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useReportStore } from '@/stores/report'
 import { useUserStore } from '@/stores/user'
+import { useChatStore } from '@/stores/chat'
 import { useReportExport } from '@/composables/useReportExport'
 import AppHeader from '@/components/common/AppHeader.vue'
 import KpiCards from '@/components/report/KpiCards.vue'
@@ -16,7 +17,17 @@ import ChatDock from '@/components/report/ChatDock.vue'
 
 const store = useReportStore()
 const userStore = useUserStore()
-const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice } = storeToRefs(store)
+const chat = useChatStore()
+const { kpi, body, sleep, nutrition, exerciseToday, weekSummary, healthAdvice, date, loading, isToday, hasReport } =
+  storeToRefs(store)
+
+const reportDatePill = computed(() => (date.value ? `${date.value}健康数据` : '健康数据'))
+const reportDateDisplay = computed(() => {
+  const d = date.value
+  if (!d) return '—'
+  const [y, m, day] = d.split('-')
+  return `${y} - ${m} - ${day}`
+})
 
 const { isLoading, errorMsg, exportReportImage, downloadImage } = useReportExport()
 const previewUrl = ref<string | null>(null)
@@ -32,6 +43,16 @@ watch(
   },
 )
 
+// 场景 1：报告生成中切换日期 — 清 Chat 展示态，任务继续
+watch(
+  () => date.value,
+  (next, prev) => {
+    if (prev && next !== prev && chat.isReportRunning) {
+      chat.clearConversationUi()
+    }
+  },
+)
+
 async function onExport() {
   const url = await exportReportImage()
   if (url) {
@@ -43,6 +64,10 @@ function closePreview() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = null
 }
+
+async function onReportComplete() {
+  // 看板刷新与 toast 由 chat store.onReportTaskSettled 处理
+}
 </script>
 
 <template>
@@ -50,16 +75,20 @@ function closePreview() {
     <div class="scroll-area">
       <div class="report-content">
       <AppHeader title="健康报告" subtitle="基于您的运动、睡眠、饮食等数据综合分析">
-        <span class="hdr-pill">2026-06-01健康数据</span>
-        <span class="hdr-pill hdr-date">
-          <svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          2026 - 06 - 01
+        <span class="hdr-pill">{{ reportDatePill }}</span>
+        <span class="hdr-pill hdr-date-nav">
+          <button type="button" class="hdr-nav" :disabled="loading" title="前一天" @click="store.prevDay()">‹</button>
+          <span class="hdr-date-inner">
+            <svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            {{ reportDateDisplay }}
+          </span>
+          <button type="button" class="hdr-nav" :disabled="loading || isToday" title="后一天" @click="store.nextDay()">›</button>
         </span>
         <button class="hdr-export" :disabled="isLoading" @click="onExport">
           <svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -81,7 +110,10 @@ function closePreview() {
           <SectionCard title="身体指标概览">
             <BodyOverview :body="body" />
           </SectionCard>
-          <HealthAdviceCard :advice="healthAdvice" />
+          <HealthAdviceCard
+            :advice="healthAdvice"
+            :empty-hint="hasReport ? undefined : '该日暂无 AI 报告，可在下方对话中生成'"
+          />
         </div>
 
         <div class="col-right">
@@ -92,7 +124,12 @@ function closePreview() {
       </div>
 
       <!-- 底部聊天卡片（整宽）-->
-      <ChatDock />
+      <ChatDock
+        :user-id="userStore.userId"
+        :user-name="userStore.userName"
+        :report-date="date"
+        :on-report-complete="onReportComplete"
+      />
       </div>
     </div>
 
@@ -160,6 +197,40 @@ function closePreview() {
 }
 .hdr-date {
   color: #3d3d3d;
+}
+.hdr-date-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: #3d3d3d;
+}
+.hdr-date-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  min-width: 130px;
+  justify-content: center;
+}
+.hdr-nav {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--c-text-secondary);
+  cursor: pointer;
+}
+.hdr-nav:hover:not(:disabled) {
+  background: #e8ecea;
+  color: var(--c-primary-hover);
+}
+.hdr-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .hdr-export {
   display: inline-flex;

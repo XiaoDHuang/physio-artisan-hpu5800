@@ -5,6 +5,9 @@ import type { ChatResponse } from './types'
 export interface PostChatParams {
   message: string
   conversation_id?: string | null
+  user_id?: number
+  date?: string
+  mode?: string
 }
 
 /** 发送一条消息，返回结构化 ChatResponse（含 intent / reply / conversation_id 等）。 */
@@ -12,5 +15,8 @@ export function postChat(params: PostChatParams): Promise<ChatResponse> {
   return postJson<ChatResponse>('/chat', {
     message: params.message,
     conversation_id: params.conversation_id ?? null,
+    user_id: params.user_id,
+    date: params.date,
+    mode: params.mode,
   })
 }

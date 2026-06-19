@@ -13,6 +13,7 @@ export interface ChatResponse {
   can_proceed: boolean
   saved: boolean
   task_id: string | null
+  anchor_date?: string | null
 }
 
 // ---------- /dashboard 看板 ----------
@@ -89,6 +90,7 @@ export interface Dashboard {
 
 export interface DashboardResponse {
   user_id: number
+  date: string
   dashboard: Dashboard
 }
 
@@ -257,6 +259,7 @@ export interface NutritionResponse {
 export interface ReportResult {
   success: boolean
   source?: string
+  anchor_date?: string
   mode?: string
   fatigue_level?: string
   final_report?: {

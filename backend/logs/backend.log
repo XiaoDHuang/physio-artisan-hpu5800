@@ -298,3 +298,45 @@ DETAIL:  键值对(user_id)=(999)没有在表"users"中出现.
 2026-06-18 00:35:26 - image_gen - WARNING - Image Gen chat_image 失败，尝试 image_gen 兜底
 2026-06-18 00:36:14 - image_gen - INFO - Image Gen 生成成功（image_gen），1173335 字节
 2026-06-18 00:36:14 - api_server - INFO - [/api/report-image] 生成成功 img_bytes=1173335
+2026-06-19 19:57:32 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-19 20:10:22 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-19 20:17:07 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-19 20:17:48 - api_server - INFO - [/chat 会话 001f5550a9fe426598c697f75bdcb6c3] 生成报告
+2026-06-19 20:17:57 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-19 20:17:57 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=control date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'mock', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:18:00 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管总体恢复状态很高，但静息心率连续3天升高，可能是身体正在应对潜在的压力或恢复需求。建议适当调整训练强度或增加休息时间。
+2026-06-19 20:18:00 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:18:07 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:18:35 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=是
+2026-06-19 20:18:44 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 提升深睡比例
+2026-06-19 20:18:44 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:18:48 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:20:39 - api_server - INFO - [/chat 会话 41998124d59e4cdcb197a9186bb355e5] 生成报告
+2026-06-19 20:20:41 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:20:43 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 虽然您的整体恢复状态非常良好，但连续三天的静息心率升高表明您的身体可能正在经历一定程度的中枢疲劳。建议关注身体信号，避免过度训练。
+2026-06-19 20:20:43 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:20:54 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:20:58 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:20:59 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 睡前减蓝光，优化入睡环境。
+2026-06-19 20:20:59 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:21:03 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:43:31 - api_server - INFO - 启动「暴汗艺术家」健康决策 API 服务…
+2026-06-19 20:43:50 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 生成报告
+2026-06-19 20:43:55 - health_agents - INFO - [Langfuse] 客户端初始化成功 host=https://langfuse.gowellgo.top
+2026-06-19 20:43:55 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:43:57 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 尽管整体状态评分很高，但静息心率连续3天升高，表明身体可能正在应对某种压力或恢复不完全，建议适当调整训练强度和恢复策略。
+2026-06-19 20:43:57 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:44:03 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:44:06 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:44:10 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 睡前减少蓝光暴露，帮助提升深睡比例。
+2026-06-19 20:44:10 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:44:14 - health_agents - INFO - [report_generator] 生成多模态体检报告
+2026-06-19 20:44:36 - api_server - INFO - [/chat 会话 a232102734014fbb8e28a6387f5c1628] 生成报告
+2026-06-19 20:44:38 - health_agents - INFO - [DataLoader] [数据接入] user=1 mode=null date=2026-06-19 来源={'watch': 'db', 'baseline': 'db', 'exercise': 'db', 'diet': 'db', 'body': 'db'} | RS=100.0 HRR=22 TRIMP=72 疲劳红旗=1项 -> medium
+2026-06-19 20:44:42 - health_agents - INFO - [physio_evaluator] RS=100.0 疲劳=medium | 虽然整体恢复状态非常好，但连续3天静息心率升高可能提示身体在适应压力或轻微疲劳，需要注意是否存在隐性压力源。
+2026-06-19 20:44:42 - health_agents - INFO - [Router] 疲劳=medium -> intervene
+2026-06-19 20:44:47 - health_agents - INFO - [exercise_coach] 降载[recovery/maintain]: ['核心拉伸 (Core Stretch)', '关节灵活性训练 (Mobility)']
+2026-06-19 20:44:51 - health_agents - INFO - [nutrition_planner] 目标热量=2285kcal 蛋白=130g 油脂代偿=否
+2026-06-19 20:44:54 - health_agents - INFO - [sleep_advisor] 睡眠建议(评分85): 睡前减少蓝光暴露。
+2026-06-19 20:44:54 - health_agents - INFO - [guardrail_auditor] 安全审计 -> [安全通行]
+2026-06-19 20:44:58 - health_agents - INFO - [report_generator] 生成多模态体检报告

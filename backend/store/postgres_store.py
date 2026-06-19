@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from psycopg2.extras import Json, RealDictCursor
 
@@ -197,6 +197,7 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
         "final_report": result.get("final_report", {}),
         "mode": result.get("mode"),
         "fatigue_level": result.get("fatigue_level"),
+        "anchor_date": result.get("anchor_date") or result.get("on_date"),
     }
 
     pool = get_pool()
@@ -237,38 +238,53 @@ async def save_assessment_artifacts(session_id: str, user_id: int, result: Dict[
 # =============================================================================
 # 读取某用户最近一次已生成的报告（供 /report/latest 复用，免重复跑工作流）
 # =============================================================================
-def _load_latest_sync(user_id: int):
+def _load_latest_sync(user_id: int, on_date: Optional[str] = None):
     pool = get_pool()
     conn = pool.getconn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT session_id, recommendations, agent_decisions, safety_logs,
-                       training_plan, meal_plan, speech_report, created_at
-                FROM ai_conversations
-                WHERE user_id = %s AND training_plan IS NOT NULL
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (user_id,),
-            )
+            if on_date:
+                cur.execute(
+                    """
+                    SELECT session_id, recommendations, agent_decisions, safety_logs,
+                           training_plan, meal_plan, speech_report, created_at
+                    FROM ai_conversations
+                    WHERE user_id = %s AND training_plan IS NOT NULL
+                      AND recommendations->>'anchor_date' = %s
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (user_id, on_date),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT session_id, recommendations, agent_decisions, safety_logs,
+                           training_plan, meal_plan, speech_report, created_at
+                    FROM ai_conversations
+                    WHERE user_id = %s AND training_plan IS NOT NULL
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (user_id,),
+                )
             row = cur.fetchone()
         return dict(row) if row else None
     finally:
         pool.putconn(conn)
 
 
-async def load_latest_assessment(user_id: int) -> Dict[str, Any]:
-    """读取并还原某用户最近一次报告为 run_health_assessment 同构结构（无则返回 None）。"""
-    row = await asyncio.to_thread(_load_latest_sync, user_id)
+async def load_latest_assessment(user_id: int, on_date: Optional[str] = None) -> Dict[str, Any]:
+    """读取并还原某用户报告为 run_health_assessment 同构结构（无则返回 None）。"""
+    row = await asyncio.to_thread(_load_latest_sync, user_id, on_date)
     if not row:
         return None
     rec = row.get("recommendations") or {}
     ad = row.get("agent_decisions") or {}
+    anchor_date = rec.get("anchor_date")
     return {
         "success": True,
-        "source": "cache",                       # 标记来自落库缓存，非实时工作流
+        "source": "cache",
         "session_id": row.get("session_id"),
+        "anchor_date": anchor_date,
         "mode": rec.get("mode"),
         "fatigue_level": rec.get("fatigue_level"),
         "physio_assessment": rec.get("physio_assessment", {}),

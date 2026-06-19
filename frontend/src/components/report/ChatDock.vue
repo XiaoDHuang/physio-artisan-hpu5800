@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // 底部聊天卡片：机器人问候 + 建议气泡 + 输入框（底部工具条）+ 回复（在输入框下方）
-// 本期：文字交互可用（Enter / 点击建议气泡发送）；图片/视频/语音为占位，不交互。
 import { ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import type { ChatSendContext } from '@/stores/chat'
+import { looksLikeReportRequest } from '@/copy/reportChat'
+import ReportTaskBanner from '@/components/common/ReportTaskBanner.vue'
 import robot from '@/assets/chat/robot.png'
 import iconPlus from '@/assets/chat/attachment-plus.png'
 import iconImage from '@/assets/chat/图片识别.png'
@@ -11,19 +13,39 @@ import iconVoice from '@/assets/chat/voice.png'
 import RecordingBar from '@/components/common/RecordingBar.vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 
+const props = defineProps<{
+  userId?: number
+  reportDate?: string
+  userName?: string
+  onReportComplete?: () => void | Promise<void>
+}>()
+
 const chat = useChatStore()
 const input = ref('')
 
 const suggestions = [
+  '帮我生成今天的健康体检报告',
   '如何提升睡眠质量？',
   '适合我的减脂计划是什么？',
-  '今天的运动目标怎么设定？',
 ]
+
+function chatCtx(): ChatSendContext {
+  return {
+    userId: props.userId,
+    date: props.reportDate,
+    userName: props.userName,
+    onReportComplete: props.onReportComplete,
+  }
+}
+
+function suggestDisabled(text: string) {
+  return chat.sending || (chat.isReportRunning && looksLikeReportRequest(text))
+}
 
 async function send(text: string) {
   const t = text.trim()
   if (!t || chat.sending) return
-  await chat.send(t)
+  await chat.send(t, chatCtx())
 }
 
 async function onSend() {
@@ -83,7 +105,7 @@ async function onVoiceStop() {
             v-for="s in suggestions"
             :key="s"
             class="suggest-pill"
-            :disabled="chat.sending"
+            :disabled="suggestDisabled(s)"
             @click="send(s)"
           >
             {{ s }}
@@ -91,6 +113,8 @@ async function onVoiceStop() {
         </div>
       </div>
     </div>
+
+    <ReportTaskBanner />
 
     <!-- 输入框（含底部工具条）/ 录音条 -->
     <div v-if="voiceState === 'idle'" class="input-box">
@@ -139,7 +163,7 @@ async function onVoiceStop() {
     <transition name="fade">
       <div v-if="chat.sending || chat.lastReply" class="reply-bar">
         <span class="reply-tag">AI</span>
-        <span v-if="chat.sending" class="reply-text thinking">正在思考…</span>
+        <span v-if="chat.sending" class="reply-text thinking">正在理解你的需求…</span>
         <span v-else class="reply-text" :class="{ blocked: chat.lastIntent === 'blocked' }">{{ chat.lastReply }}</span>
       </div>
     </transition>

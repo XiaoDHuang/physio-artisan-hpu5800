@@ -28,7 +28,7 @@ from pathlib import Path
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -45,6 +45,13 @@ from agents.safety import screen_text
 from agents.asr import transcribe_audio, ASRError, ASRValidationError
 from agents.tts import synthesize_speech, TTSError, TTSValidationError
 from agents.image_gen import generate_report_image, ImageGenError, ImageGenValidationError
+from agents.copy.report_replies import (
+    immediate_reply,
+    progress_message,
+    MSG_TASK_STARTED,
+    MSG_TASK_COMPLETED,
+    MSG_TASK_FAILED,
+)
 from store.safety_store import save_safety_log
 from store.postgres_store import load_latest_assessment
 
@@ -101,6 +108,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(default=None, description="会话ID，为空表示新建会话")
     image_base64: Optional[str] = Field(default=None, description="可选：上传图片(base64/路径)用于多模态识别录入")
     mode: Optional[str] = Field(default=None, description="可选：报告场景 control|experiment")
+    user_id: int = Field(default=intake.DEFAULT_USER_ID, description="用户 ID，默认演示用户")
+    date: Optional[str] = Field(default=None, description="报告锚点日 YYYY-MM-DD，默认今天")
 
 
 class SleepEntryRequest(BaseModel):
@@ -145,12 +154,14 @@ class ChatResponse(BaseModel):
     can_proceed: bool = Field(False, description="数据是否齐全可入库/可继续")
     saved: bool = Field(False, description="本轮是否已入库")
     task_id: Optional[str] = Field(None, description="报告任务ID(report 意图时返回)")
+    anchor_date: Optional[str] = Field(None, description="报告锚点日(report 意图时回显)")
 
 
 class PlanRequest(BaseModel):
     user_id: int = Field(default=intake.DEFAULT_USER_ID, description="用户ID，默认演示用户(小明 id=1)")
     mode: str = Field(default="control", description="场景：control(放任恶化) | experiment(积极恢复)")
     conversation_id: Optional[str] = Field(default=None, description="可选：关联的会话ID")
+    date: Optional[str] = Field(default=None, description="报告锚点日 YYYY-MM-DD，默认今天")
 
 
 class PlanResponse(BaseModel):
@@ -208,11 +219,13 @@ ROUTER_SYSTEM_PROMPT = """你是「暴汗艺术家」健康助手的意图理解
   "intent": "report | data_entry | other",
   "data_type": "exercise | nutrition | body | null",
   "extracted": { "字段名": 值, ... },
+  "on_date": "YYYY-MM-DD | null",
   "mode": "control | experiment | null",
   "reply": "面向用户的简短中文话术"
 }
 
-字段名规范：duration_minutes, peak_hr, hr_60s, rpe, diet_narrative, weight_kg, body_fat_pct。"""
+字段名规范：duration_minutes, peak_hr, hr_60s, rpe, diet_narrative, weight_kg, body_fat_pct。
+若用户提到报告日期（如「6月10日」「上周一」），解析为 on_date；仅年份缺省时用当前年。"""
 
 
 def _route_intent(history: List[Dict[str, str]], message: str) -> Dict[str, Any]:
@@ -237,47 +250,70 @@ def _route_intent(history: List[Dict[str, str]], message: str) -> Dict[str, Any]
     return parsed
 
 
-# --------------------------- 后台任务：运行健康决策工作流 ---------------------------
-async def run_assessment_task(task_id: str, user_id: int, mode: str, session_id: str):
+def _resolve_anchor_date(explicit: Optional[str], routed_on_date: Optional[str]) -> str:
+    """合并请求 date 与路由抽取 on_date，校验格式与未来日。"""
+    raw = (explicit or routed_on_date or "").strip() or None
+    if not raw:
+        return date.today().isoformat()
     try:
-        assessment_tasks[task_id].update(status="processing", progress=20,
-                                          message="多智能体会诊中：生理评估 → 教练 → 膳食 → 报告...")
+        d = date.fromisoformat(raw)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail="date 格式须为 YYYY-MM-DD") from e
+    if d > date.today():
+        raise HTTPException(status_code=422, detail="不能生成未来日期的报告")
+    return d.isoformat()
+
+
+# --------------------------- 后台任务：运行健康决策工作流 ---------------------------
+async def run_assessment_task(task_id: str, user_id: int, mode: str, session_id: str,
+                              anchor_date: str):
+    try:
+        assessment_tasks[task_id].update(
+            status="processing", progress=20,
+            message=progress_message("processing", 20),
+        )
         result = await asyncio.to_thread(
             lambda: get_agents().run_health_assessment(
-                {"user_id": user_id, "mode": mode, "session_id": session_id})
+                {"user_id": user_id, "mode": mode, "session_id": session_id,
+                 "on_date": anchor_date, "anchor_date": anchor_date})
         )
         if result.get("success"):
-            assessment_tasks[task_id].update(status="completed", progress=100,
-                                             message="健康决策完成！", result=result)
-            # 报告产出回写到 ai_conversations（同 session_id 行）
+            assessment_tasks[task_id].update(
+                status="completed", progress=100,
+                message=MSG_TASK_COMPLETED, result=result,
+            )
             try:
                 await save_assessment_artifacts(session_id, user_id, result)
             except Exception as e:  # noqa: BLE001
                 api_logger.error(f"任务 {task_id} 产出回写失败: {e}")
-            # 训练/睡眠/饮食计划回写到 user_plans（三页建议/方案源）
             try:
-                from datetime import date as _date
-                await save_user_plan(user_id, _date.today().isoformat(), result)
+                await save_user_plan(user_id, anchor_date, result)
             except Exception as e:  # noqa: BLE001
                 api_logger.error(f"任务 {task_id} user_plans 回写失败: {e}")
         else:
-            assessment_tasks[task_id].update(status="failed", progress=100,
-                                             message=result.get("error", "未知错误"), result=result)
+            api_logger.error(f"任务 {task_id} 工作流失败: {result.get('error')}")
+            assessment_tasks[task_id].update(
+                status="failed", progress=100,
+                message=MSG_TASK_FAILED, result=result,
+            )
     except Exception as e:  # noqa: BLE001
         api_logger.error(f"任务 {task_id} 执行异常: {e}")
-        assessment_tasks[task_id].update(status="failed", progress=100, message=f"系统错误: {e}")
+        assessment_tasks[task_id].update(
+            status="failed", progress=100, message=MSG_TASK_FAILED,
+        )
 
 
-def _create_assessment_task(user_id: int, mode: str, session_id: str,
+def _create_assessment_task(user_id: int, mode: str, session_id: str, anchor_date: str,
                             background_tasks: BackgroundTasks) -> str:
     task_id = str(uuid.uuid4())
     assessment_tasks[task_id] = {
         "task_id": task_id, "status": "started", "progress": 0,
-        "message": "任务已创建，准备开始健康决策...", "result": None,
+        "message": MSG_TASK_STARTED, "result": None,
         "created_at": datetime.now().isoformat(),
         "user_id": user_id, "mode": mode, "session_id": session_id,
+        "anchor_date": anchor_date,
     }
-    background_tasks.add_task(run_assessment_task, task_id, user_id, mode, session_id)
+    background_tasks.add_task(run_assessment_task, task_id, user_id, mode, session_id, anchor_date)
     return task_id
 
 
@@ -298,7 +334,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         try:
             await save_safety_log(request.message, screen["category"], screen["level"],
                                   screen["violations"], screen["warnings"], True,
-                                  intake.DEFAULT_USER_ID)
+                                  request.user_id)
         except Exception as e:  # noqa: BLE001
             api_logger.error(f"安全日志写入失败: {e}")
         await store.append(conversation_id, [
@@ -325,11 +361,13 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     # ---------- 报告生成 ----------
     if intent == "report":
         mode = request.mode or routed.get("mode") or "control"
-        task_id = _create_assessment_task(intake.DEFAULT_USER_ID, mode, conversation_id, background_tasks)
+        anchor_date = _resolve_anchor_date(request.date, routed.get("on_date"))
+        task_id = _create_assessment_task(
+            request.user_id, mode, conversation_id, anchor_date, background_tasks)
         resp.task_id = task_id
+        resp.anchor_date = anchor_date
         resp.can_proceed = True
-        resp.reply = (reply or "好的，正在为你生成健康体检报告。") + \
-            f"\n\n🤖 多智能体会诊已启动（task_id={task_id}），稍后用 /status 查看报告。"
+        resp.reply = immediate_reply(anchor_date, reply or None)
 
     # ---------- 数据录入 ----------
     elif intent == "data_entry" and data_type in intake.DATA_ENTRY_SCHEMAS:
@@ -345,7 +383,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         else:
             try:
                 saved = await asyncio.to_thread(
-                    intake.save_entry, data_type, cleaned, intake.DEFAULT_USER_ID)
+                    intake.save_entry, data_type, cleaned, request.user_id)
                 resp.saved = bool(saved.get("saved"))
                 resp.can_proceed = True
                 resp.reply = f"✅ 已记录【{label}】：{json.dumps(saved.get('record', {}), ensure_ascii=False)}。" + \
@@ -375,8 +413,10 @@ async def create_plan(request: PlanRequest, background_tasks: BackgroundTasks):
     if request.mode not in ("control", "experiment"):
         raise HTTPException(status_code=400, detail="mode 必须为 control 或 experiment")
     session_id = request.conversation_id or str(uuid.uuid4())
-    task_id = _create_assessment_task(request.user_id, request.mode, session_id, background_tasks)
-    api_logger.info(f"[/plan] 创建任务 {task_id} user={request.user_id} mode={request.mode}")
+    anchor_date = _resolve_anchor_date(request.date, None)
+    task_id = _create_assessment_task(
+        request.user_id, request.mode, session_id, anchor_date, background_tasks)
+    api_logger.info(f"[/plan] 创建任务 {task_id} user={request.user_id} mode={request.mode} date={anchor_date}")
     return PlanResponse(task_id=task_id, status="started",
                         message="健康决策任务已启动，请用 task_id 轮询 /status")
 
@@ -393,13 +433,16 @@ async def get_status(task_id: str):
 
 
 @app.get("/dashboard/{user_id}")
-async def get_dashboard(user_id: int):
+async def get_dashboard(user_id: int, on_date: Optional[str] = Query(default=None, alias="date")):
     """看板数据（纯数据库聚合，无 LLM、毫秒级）：KPI/身体/睡眠/饮食/运动/周对比。
+
+    Query:
+        date: 锚点日期 YYYY-MM-DD，默认今天；以该日为「当日」面板并计算周对比。
 
     供"非报告类看板"页面秒开使用；不触发多智能体工作流。
     """
-    data = await asyncio.to_thread(hdata.get_week_overview, user_id)
-    return {"user_id": user_id, "dashboard": data}
+    data = await asyncio.to_thread(hdata.get_week_overview, user_id, 14, on_date)
+    return {"user_id": user_id, "date": on_date or date.today().isoformat(), "dashboard": data}
 
 
 # --------------------------- 三页只读 + 睡眠录入端点 ---------------------------
@@ -466,13 +509,21 @@ async def get_nutrition(user_id: int, date: Optional[str] = None):
 
 
 @app.get("/report/latest/{user_id}")
-async def get_latest_report(user_id: int):
-    """查询某用户最近一次已生成的报告（读 ai_conversations 落库缓存，免重复跑工作流）。
+async def get_latest_report(user_id: int, on_date: Optional[str] = Query(default=None, alias="date")):
+    """查询某用户已生成的报告（读 ai_conversations 落库缓存，免重复跑工作流）。
+
+    Query:
+        date: 可选，按报告锚点日筛选；缺省返回最近一次。
 
     返回结构与 /status 的 result 一致（含 final_report.chart_data），并标记 source=cache。
     若该用户尚无报告，返回 404。
     """
-    result = await load_latest_assessment(user_id)
+    if on_date:
+        try:
+            date.fromisoformat(on_date)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail="date 格式须为 YYYY-MM-DD") from e
+    result = await load_latest_assessment(user_id, on_date)
     if not result:
         raise HTTPException(status_code=404, detail="该用户暂无已生成的报告，请先调用 /plan 生成")
     return result

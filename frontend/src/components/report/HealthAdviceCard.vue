@@ -4,7 +4,10 @@ import type { HealthAdvice } from '@/api/types'
 import { useSpeechSynthesis } from '@/composables/useSpeechSynthesis'
 import SectionCard from './SectionCard.vue'
 
-const props = defineProps<{ advice: HealthAdvice | null }>()
+const props = defineProps<{
+  advice: HealthAdvice | null
+  emptyHint?: string
+}>()
 
 const { isSpeaking, isLoading, errorMsg, speak, stop } = useSpeechSynthesis()
 const activeKey = ref<string | null>(null)
@@ -16,11 +19,15 @@ const PLACEHOLDER = {
   nutrition: '三餐粗细搭配，优质蛋白足量摄入，少油少盐控糖。多吃蔬菜，主食替换杂粮，规律进餐稳血糖。',
 }
 
-const cards = computed(() => [
-  { key: 'exercise', title: '运动建议', cls: 'green', text: props.advice?.exercise || PLACEHOLDER.exercise, btn: '查看运动计划' },
-  { key: 'sleep', title: '睡眠建议', cls: 'purple', text: props.advice?.sleep || PLACEHOLDER.sleep, btn: '查看改善方法' },
-  { key: 'nutrition', title: '饮食建议', cls: 'orange', text: props.advice?.nutrition || PLACEHOLDER.nutrition, btn: '查看饮食方案' },
-])
+const cards = computed(() => {
+  const hint = props.emptyHint
+  const useHint = !props.advice && hint
+  return [
+    { key: 'exercise', title: '运动建议', cls: 'green', text: props.advice?.exercise || (useHint ? hint : PLACEHOLDER.exercise), btn: '查看运动计划' },
+    { key: 'sleep', title: '睡眠建议', cls: 'purple', text: props.advice?.sleep || (useHint ? hint : PLACEHOLDER.sleep), btn: '查看改善方法' },
+    { key: 'nutrition', title: '饮食建议', cls: 'orange', text: props.advice?.nutrition || (useHint ? hint : PLACEHOLDER.nutrition), btn: '查看饮食方案' },
+  ]
+})
 
 function toggleSpeak(key: string, text: string) {
   if (activeKey.value === key && isSpeaking.value) {

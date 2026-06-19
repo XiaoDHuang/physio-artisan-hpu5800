@@ -2,12 +2,14 @@
 import { getJson } from './http'
 import type { DashboardResponse, ReportResult } from './types'
 
-/** 看板数据聚合（纯 DB，毫秒级，不触发工作流） */
-export function getDashboard(userId: number): Promise<DashboardResponse> {
-  return getJson<DashboardResponse>(`/dashboard/${userId}`)
+/** 看板数据聚合（纯 DB，毫秒级，不触发工作流）；date 缺省取今天 */
+export function getDashboard(userId: number, date?: string): Promise<DashboardResponse> {
+  const q = date ? `?date=${date}` : ''
+  return getJson<DashboardResponse>(`/dashboard/${userId}${q}`)
 }
 
-/** 最近一次已生成的报告（落库缓存）；无报告时后端返回 404 */
-export function getLatestReport(userId: number): Promise<ReportResult> {
-  return getJson<ReportResult>(`/report/latest/${userId}`)
+/** 已生成报告（落库缓存）；date 可选，按锚点日筛选 */
+export function getLatestReport(userId: number, date?: string): Promise<ReportResult> {
+  const q = date ? `?date=${date}` : ''
+  return getJson<ReportResult>(`/report/latest/${userId}${q}`)
 }
