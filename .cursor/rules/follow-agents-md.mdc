@@ -1,0 +1,10 @@
+---
+description: 加载仓库根目录 AGENTS.md 中的通用项目说明
+alwaysApply: true
+---
+
+Read and follow all instructions in the repository root `AGENTS.md`.
+
+Additional Cursor notes:
+- Shared skills and commands live in `.agents/` (symlinked from `.cursor/skills` and `.cursor/commands`).
+- Interface changes must stay in sync with `docs/接口契约.md`.

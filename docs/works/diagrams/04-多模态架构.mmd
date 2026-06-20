@@ -1,0 +1,8 @@
+flowchart LR
+    R["report_generator<br/>决策 JSON"] --> CD["report_payload<br/>chart_data 数据契约"]
+    CD --> C1["📈 RS 半圆仪表盘"]
+    CD --> C2["📉 HRV/身体年龄 7日双曲线<br/>对照组 vs 实验组"]
+    CD --> C3["🕸️ 干预前后健康雷达图"]
+    R --> IMG["🖼️ /report-image<br/>gpt-image-1.5 信息图"]
+    R --> TTS["🔊 /tts<br/>vocal_narrative → 语音播报"]
+    A["🎤 /asr<br/>语音录入数据"] --> R

@@ -24,23 +24,43 @@
 ## 🤖 AI智能体团队
 
 ### 核心智能体
-1. **🎯 协调员智能体** - 工作流编排与决策综合
-2. **✈️ 旅行顾问** - 目的地专业知识与实时搜索
-3. **💰 预算优化师** - 成本分析与实时定价
-4. **🌤️ 天气分析师** - 天气情报与当前数据
-5. **🏠 当地专家** - 内部知识与实时本地信息
-6. **📅 行程规划师** - 日程优化与物流安排
+1. **🧹 data_loader（数据接入层）** — DB 优先 + mock 回退 + 确定性公式
+2. **📊 physio_evaluator（生理评估智能体）** — CoT 解读 RS / 疲劳红旗
+3. **🏋️ exercise_coach（运动教练智能体）** — 调用 wger 工具降载（疲劳高/中时触发）
+4. **✅ maintain_plan（维持/进阶力量计划）** — 疲劳低时维持或进阶力量计划
+5. **🍽️ nutrition_planner（膳食规划智能体）** — 调用 USDA 工具配平
+6. **😴 sleep_advisor（睡眠建议智能体）** — 睡眠恢复与作息建议
+7. **🛡️ guardrail_auditor（安全审计智能体）** — screen_text 红线扫描，命中则熔断就医分流
+8. **📑 report_generator（报告生成智能体）** — visual_metrics + vocal_narrative 多模态报告
 
 ### 智能体协作流程
 
 #### 简化流程
 ```
-用户请求 → 协调员 → 并行执行各专业智能体 → 结果整合 → 生成报告
+用户请求 → data_loader → physio_evaluator → [疲劳高/中: exercise_coach | 疲劳低: maintain_plan]
+         → nutrition_planner → sleep_advisor → guardrail_auditor → report_generator → 多模态报告
 ```
 
 #### 详细工作流程图
 
 ```mermaid
+flowchart TD
+    START([用户请求 / mode]) --> DL["🧹 data_loader<br/>数据接入层<br/>DB优先+mock回退+确定性公式"]
+    DL --> PE["📊 physio_evaluator<br/>生理评估智能体<br/>CoT 解读 RS/疲劳红旗"]
+    PE -->|"条件边<br/>疲劳 高/中"| EC["🏋️ exercise_coach<br/>运动教练智能体<br/>调用 wger 工具降载"]
+    PE -->|"条件边<br/>疲劳 低"| MP["✅ maintain_plan<br/>维持/进阶力量计划"]
+    EC --> NP["🍽️ nutrition_planner<br/>膳食规划智能体<br/>调用 USDA 工具配平"]
+    NP --> SA["😴 sleep_advisor<br/>睡眠建议智能体"]
+    MP --> SA
+    SA --> GA["🛡️ guardrail_auditor<br/>安全审计智能体<br/>screen_text 红线扫描"]
+    GA -->|"命中红线"| BLK["⛔ 熔断：输出就医分流话术"]
+    GA -->|"安全通行"| RG["📑 report_generator<br/>报告生成智能体<br/>visual_metrics + vocal_narrative"]
+    BLK --> RG
+    RG --> END([多模态报告 JSON + chart_data])
+
+    style PE fill:#cde4ff
+    style GA fill:#ffd9d9
+    style RG fill:#d9ffe0
 ```
 
 ## 🚀 快速开始

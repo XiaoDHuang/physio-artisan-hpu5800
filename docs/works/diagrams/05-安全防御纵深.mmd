@@ -1,0 +1,9 @@
+flowchart TD
+    IN["用户输入"] --> L0{"输入侧预检<br/>screen_text() @ /chat"}
+    L0 -->|命中红线| BLK1["⛔ 立即熔断<br/>不路由/不入库/不生成报告"]
+    L0 -->|通过| FLOW["多智能体工作流"]
+    FLOW --> L1{"输出侧审计<br/>guardrail_auditor 节点"}
+    L1 -->|命中红线| BLK2["⛔ 就医分流话术覆盖<br/>写安全日志"]
+    L1 -->|安全通行| OUT["✅ 多模态报告"]
+    BLK1 --> LOG["📝 safety_logs 落库"]
+    BLK2 --> LOG

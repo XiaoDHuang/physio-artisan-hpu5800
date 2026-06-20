@@ -55,7 +55,12 @@ class ConversationStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def append(self, conversation_id: str, messages: List[Dict[str, str]]) -> None:
+    async def append(
+        self,
+        conversation_id: str,
+        messages: List[Dict[str, str]],
+        user_id: Optional[int] = None,
+    ) -> None:
         """向指定会话追加一条或多条消息（通常是本轮的 user + assistant）。"""
         raise NotImplementedError
 
@@ -92,7 +97,12 @@ class InMemoryConversationStore(ConversationStore):
             # 返回副本，避免调用方在锁外修改内部列表
             return list(self._data.get(conversation_id, []))
 
-    async def append(self, conversation_id: str, messages: List[Dict[str, str]]) -> None:
+    async def append(
+        self,
+        conversation_id: str,
+        messages: List[Dict[str, str]],
+        user_id: Optional[int] = None,
+    ) -> None:
         if not messages:
             return
         async with self._locks[conversation_id]:

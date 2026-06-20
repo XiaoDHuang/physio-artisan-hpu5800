@@ -1,14 +1,16 @@
 <script setup lang="ts">
-// 四页共用顶部 Header：左=标题(缺省取 route.meta.title) / 中=页面自定义槽位 / 右=当前日期+问候+头像
+// 四页共用顶部 Header：左=标题(缺省取 route.meta.title) / 中=页面自定义槽位 / 右=当前日期+问候+头像(可切换演示用户)
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { DEMO_USERS, useUserStore, type DemoUserId } from '@/stores/user'
 
 const props = defineProps<{ title?: string; subtitle?: string }>()
 
-// 本期无用户态，用户名取共享常量（设计图为 Kevin）
-const USER_NAME = 'Kevin'
-
 const route = useRoute()
+const userStore = useUserStore()
+const { userId, userName, reloading } = storeToRefs(userStore)
+
 const pageTitle = computed(() => props.title || (route.meta.title as string) || '')
 
 const WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
@@ -16,6 +18,20 @@ const todayText = computed(() => {
   const d = new Date()
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${WEEK[d.getDay()]}`
 })
+
+const userMenuItems = computed(() =>
+  DEMO_USERS.map((u) => ({
+    key: String(u.id),
+    label: u.id === userId.value ? `${u.name}（当前）` : u.name,
+    disabled: u.id === userId.value,
+  })),
+)
+
+async function onUserMenuClick({ key }: { key: string }) {
+  const id = Number(key) as DemoUserId
+  if (id !== 1 && id !== 2) return
+  await userStore.switchUser(id)
+}
 </script>
 
 <template>
@@ -32,15 +48,20 @@ const todayText = computed(() => {
     <div class="right">
       <div class="date-info">
         <div class="today">{{ todayText }}</div>
-        <div class="greeting">Hello {{ USER_NAME }}</div>
+        <div class="greeting">Hello {{ userName }}</div>
       </div>
-      <div class="avatar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
-        </svg>
-      </div>
+      <a-dropdown :trigger="['click']" placement="bottomRight">
+        <button type="button" class="avatar user-switch" :class="{ loading: reloading }" title="切换用户" :disabled="reloading">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+          </svg>
+        </button>
+        <template #overlay>
+          <a-menu :items="userMenuItems" @click="onUserMenuClick" />
+        </template>
+      </a-dropdown>
     </div>
   </header>
 </template>
@@ -105,6 +126,29 @@ const todayText = computed(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.user-switch {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.user-switch:hover {
+  box-shadow: 0 0 0 2px var(--c-primary-soft);
+}
+.user-switch:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.user-switch:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.user-switch.loading {
+  animation: pulse 0.8s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 .avatar svg {
   width: 22px;

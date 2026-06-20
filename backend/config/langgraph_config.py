@@ -60,6 +60,42 @@ class LangGraphConfig:
     HOTEL_SEARCH_ENABLED = True        # 启用酒店搜索
     RESTAURANT_SEARCH_ENABLED = True   # 启用餐厅搜索
 
+    # ======================== ASR 语音识别配置 ========================
+    # 调用模式：transcriptions(OpenAI音频接口) | chat_audio(多模态chat base64)
+    ASR_MODE = os.getenv("ASR_MODE", "chat_audio")
+    ASR_MODEL = os.getenv("ASR_MODEL", "qwen3-omni-flash")
+    # ASR 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    ASR_BASE_URL = os.getenv("ASR_BASE_URL") or OPENAI_BASE_URL
+    ASR_API_KEY = os.getenv("ASR_API_KEY") or OPENAI_API_KEY
+    # 上传限制
+    ASR_MAX_SECONDS = int(os.getenv("ASR_MAX_SECONDS", "60"))
+    ASR_MAX_MB = float(os.getenv("ASR_MAX_MB", "10"))
+
+    # ======================== TTS 语音合成配置 ========================
+    TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
+    TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+    # TTS 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    TTS_BASE_URL = os.getenv("TTS_BASE_URL") or OPENAI_BASE_URL
+    TTS_API_KEY = os.getenv("TTS_API_KEY") or OPENAI_API_KEY
+    # 文本长度限制（字符）
+    TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "1000"))
+
+    # ======================== Image 图片生成配置 ========================
+    # 调用模式：chat_image(多模态chat image输出) | image_gen(/images/generations)
+    IMAGE_MODE = os.getenv("IMAGE_MODE", "chat_image")
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gpt-image-2")
+    # gpt-image-2 不支持 size/quality=auto；默认方形略小以加快生成
+    IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1024x1024")
+    # gpt-image-2: low | medium | high（medium 平衡速度与文字可读性）
+    IMAGE_QUALITY = os.getenv("IMAGE_QUALITY", "medium")
+    # gpt-image-2 可选: off | low | medium | high；low 加快生成
+    IMAGE_THINKING = os.getenv("IMAGE_THINKING", "low")
+    # 上游生成超时（秒）；gpt-image-2 + high 常超过 90s
+    IMAGE_TIMEOUT = int(os.getenv("IMAGE_TIMEOUT", "180"))
+    # Image 网关地址 / API Key，默认复用 OpenAI 兼容网关配置
+    IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL") or OPENAI_BASE_URL
+    IMAGE_API_KEY = os.getenv("IMAGE_API_KEY") or OPENAI_API_KEY
+
     # 模型生成参数
     TEMPERATURE = 0.7    # 控制生成文本的随机性(0-1，越高越随机)
     MAX_TOKENS = 4000    # 最大生成token数

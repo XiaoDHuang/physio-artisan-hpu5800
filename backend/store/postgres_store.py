@@ -3,7 +3,7 @@
 设计变更（统一持久化）：
 - 原先独立的 chat_conversations 表已废弃，会话历史统一收敛到项目既有的
   ai_conversations 表，按 session_id 维护（一会话一行，UPSERT 滑窗裁剪）。
-- 暂无用户态：所有会话归属到 seed_xiaoming.sql 插入的演示用户（小明 id=1）。
+- 会话 `user_id` 由 /chat 请求传入；缺省回落到演示用户（小明 id=1）。
 - 同一行还可回写一次健康决策的产出（training_plan / meal_plan / agent_decisions /
   safety_logs / recommendations / speech_report），实现"对话 + 报告"同源存档。
 
@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from psycopg2.extras import Json, RealDictCursor
 
@@ -95,11 +95,17 @@ class PostgresConversationStore(ConversationStore):
             messages = json.loads(messages)
         return messages or []
 
-    async def append(self, conversation_id: str, messages: List[Dict[str, str]]) -> None:
+    async def append(
+        self,
+        conversation_id: str,
+        messages: List[Dict[str, str]],
+        user_id: Optional[int] = None,
+    ) -> None:
         if not messages:
             return
         await self._ensure_table()
         limit = self._max_messages
+        uid = user_id if user_id is not None else DEFAULT_USER_ID
 
         def upsert(conn):
             with conn.cursor() as cur:
@@ -109,6 +115,7 @@ class PostgresConversationStore(ConversationStore):
                     INSERT INTO ai_conversations (user_id, session_id, messages)
                     VALUES (%s, %s, %s)
                     ON CONFLICT (session_id) DO UPDATE SET
+                        user_id = EXCLUDED.user_id,
                         messages = (
                             SELECT to_jsonb(array_agg(m))
                             FROM (
@@ -125,7 +132,7 @@ class PostgresConversationStore(ConversationStore):
                             ) sub
                         )
                     """,
-                    (DEFAULT_USER_ID, conversation_id, Json(messages), limit),
+                    (uid, conversation_id, Json(messages), limit),
                 )
 
         await asyncio.to_thread(self._run, upsert)
@@ -197,6 +204,7 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
         "final_report": result.get("final_report", {}),
         "mode": result.get("mode"),
         "fatigue_level": result.get("fatigue_level"),
+        "anchor_date": result.get("anchor_date") or result.get("on_date"),
     }
 
     pool = get_pool()
@@ -211,6 +219,7 @@ def _save_artifacts_sync(session_id: str, user_id: int, result: Dict[str, Any]) 
                      recommendations, training_plan, meal_plan, speech_report)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE SET
+                    user_id         = EXCLUDED.user_id,
                     agent_decisions = EXCLUDED.agent_decisions,
                     safety_logs     = EXCLUDED.safety_logs,
                     recommendations = EXCLUDED.recommendations,
@@ -237,38 +246,53 @@ async def save_assessment_artifacts(session_id: str, user_id: int, result: Dict[
 # =============================================================================
 # 读取某用户最近一次已生成的报告（供 /report/latest 复用，免重复跑工作流）
 # =============================================================================
-def _load_latest_sync(user_id: int):
+def _load_latest_sync(user_id: int, on_date: Optional[str] = None):
     pool = get_pool()
     conn = pool.getconn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT session_id, recommendations, agent_decisions, safety_logs,
-                       training_plan, meal_plan, speech_report, created_at
-                FROM ai_conversations
-                WHERE user_id = %s AND training_plan IS NOT NULL
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (user_id,),
-            )
+            if on_date:
+                cur.execute(
+                    """
+                    SELECT session_id, recommendations, agent_decisions, safety_logs,
+                           training_plan, meal_plan, speech_report, created_at
+                    FROM ai_conversations
+                    WHERE user_id = %s AND training_plan IS NOT NULL
+                      AND recommendations->>'anchor_date' = %s
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (user_id, on_date),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT session_id, recommendations, agent_decisions, safety_logs,
+                           training_plan, meal_plan, speech_report, created_at
+                    FROM ai_conversations
+                    WHERE user_id = %s AND training_plan IS NOT NULL
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (user_id,),
+                )
             row = cur.fetchone()
         return dict(row) if row else None
     finally:
         pool.putconn(conn)
 
 
-async def load_latest_assessment(user_id: int) -> Dict[str, Any]:
-    """读取并还原某用户最近一次报告为 run_health_assessment 同构结构（无则返回 None）。"""
-    row = await asyncio.to_thread(_load_latest_sync, user_id)
+async def load_latest_assessment(user_id: int, on_date: Optional[str] = None) -> Dict[str, Any]:
+    """读取并还原某用户报告为 run_health_assessment 同构结构（无则返回 None）。"""
+    row = await asyncio.to_thread(_load_latest_sync, user_id, on_date)
     if not row:
         return None
     rec = row.get("recommendations") or {}
     ad = row.get("agent_decisions") or {}
+    anchor_date = rec.get("anchor_date")
     return {
         "success": True,
-        "source": "cache",                       # 标记来自落库缓存，非实时工作流
+        "source": "cache",
         "session_id": row.get("session_id"),
+        "anchor_date": anchor_date,
         "mode": rec.get("mode"),
         "fatigue_level": rec.get("fatigue_level"),
         "physio_assessment": rec.get("physio_assessment", {}),

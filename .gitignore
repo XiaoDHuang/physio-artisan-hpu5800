@@ -19,10 +19,23 @@ env/
 node_modules/
 dist/
 
+backend/logs
+
 # OS
 .DS_Store
 Thumbs.db
 
 demo/
 CLAUDE.local.md
-.claude
+AGENTS.local.md
+
+logs/backend.log
+
+# AI agent symlinks (canonical source: .agents/) — run scripts/setup-agent-links.ps1
+.claude/commands
+.claude/skills
+.claude/settings.local.json
+.cursor/commands
+.cursor/skills
+.codex/commands
+.codex/skills

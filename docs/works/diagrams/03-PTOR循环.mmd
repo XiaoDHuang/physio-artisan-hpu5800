@@ -1,0 +1,13 @@
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant G as LangGraph 编排
+    participant T as 工具层(wger/USDA/生理公式)
+    participant S as 安全官
+    U->>G: Plan 规划：mode=control，评估今日状态
+    G->>T: Tool Use 工具调用：calc_readiness_score / wger / USDA
+    T-->>G: Observation 观察：RS=62, 疲劳=high, 三文鱼=208kcal/100g
+    G->>G: 条件边分叉：疲劳高 → 触发降载干预
+    G->>S: 安全检查：扫描训练+膳食+用户原话
+    S-->>G: Revision 修订：命中"双氯芬酸钠"→熔断覆盖 / 未命中→放行
+    G-->>U: Final Output 最终输出：多模态报告（图表+语音+卡片）

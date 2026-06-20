@@ -64,9 +64,10 @@ def build_report_payload(user_id: int, result: Dict[str, Any]) -> Dict[str, Any]
         user_id: 用户ID（用于拉取双场景数据）。
         result: run_health_assessment 的返回值（含 derived_metrics / training_plan 等）。
     """
+    on_date = result.get("anchor_date") or result.get("on_date")
     try:
-        ctrl = hdata.compute_metrics(user_id, "control")
-        expt = hdata.compute_metrics(user_id, "experiment")
+        ctrl = hdata.compute_metrics(user_id, "control", on_date=on_date)
+        expt = hdata.compute_metrics(user_id, "experiment", on_date=on_date)
     except Exception as e:  # noqa: BLE001
         logger.error("[report_payload] 双场景指标计算失败: %s", e)
         ctrl = expt = None
@@ -127,7 +128,7 @@ def build_report_payload(user_id: int, result: Dict[str, Any]) -> Dict[str, Any]
 
     # ⑤ 仪表盘各面板（来自数据库真实周聚合）：身体概览/睡眠/饮食/运动/周对比/KPI
     try:
-        dashboard = hdata.get_week_overview(user_id)
+        dashboard = hdata.get_week_overview(user_id, on_date=on_date)
     except Exception as e:  # noqa: BLE001
         logger.error("[report_payload] 周聚合失败: %s", e)
         dashboard = {}

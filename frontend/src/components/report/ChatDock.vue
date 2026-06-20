@@ -1,27 +1,59 @@
 <script setup lang="ts">
 // 底部聊天卡片：机器人问候 + 建议气泡 + 输入框（底部工具条）+ 回复（在输入框下方）
-// 本期：文字交互可用（Enter / 点击建议气泡发送）；图片/视频/语音为占位，不交互。
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import type { ChatSendContext } from '@/stores/chat'
+import { looksLikeReportRequest, formatCnDate } from '@/copy/reportChat'
+import ReportTaskBanner from '@/components/common/ReportTaskBanner.vue'
 import robot from '@/assets/chat/robot.png'
 import iconPlus from '@/assets/chat/attachment-plus.png'
 import iconImage from '@/assets/chat/图片识别.png'
 import iconVideo from '@/assets/chat/视频上传.png'
 import iconVoice from '@/assets/chat/voice.png'
+import iconSend from '@/assets/page-nutrition/发送按钮图标.svg'
+import RecordingBar from '@/components/common/RecordingBar.vue'
+import { useVoiceInput } from '@/composables/useVoiceInput'
+
+const props = defineProps<{
+  userId?: number
+  reportDate?: string
+  userName?: string
+  onReportComplete?: () => void | Promise<void>
+}>()
 
 const chat = useChatStore()
 const input = ref('')
 
-const suggestions = [
+const reportGenerateSuggestion = computed(() => {
+  const d = props.reportDate?.trim()
+  if (!d) return '帮我生成今天的健康体检报告'
+  const day = formatCnDate(d)
+  return day === '今天' ? '帮我生成今天的健康体检报告' : `帮我生成${day}的健康体检报告`
+})
+
+const suggestions = computed(() => [
+  reportGenerateSuggestion.value,
   '如何提升睡眠质量？',
   '适合我的减脂计划是什么？',
-  '今天的运动目标怎么设定？',
-]
+])
+
+function chatCtx(): ChatSendContext {
+  return {
+    userId: props.userId,
+    date: props.reportDate,
+    userName: props.userName,
+    onReportComplete: props.onReportComplete,
+  }
+}
+
+function suggestDisabled(text: string) {
+  return chat.sending || (chat.isReportRunning && looksLikeReportRequest(text))
+}
 
 async function send(text: string) {
   const t = text.trim()
   if (!t || chat.sending) return
-  await chat.send(t)
+  await chat.send(t, chatCtx())
 }
 
 async function onSend() {
@@ -35,6 +67,37 @@ function onEnter(e: KeyboardEvent) {
   if (e.shiftKey) return // Shift+Enter 换行
   e.preventDefault()
   onSend()
+}
+
+// 语音输入：空输入时右侧圆按钮=录音；有文字时=发送（原位不变，图标随状态切换）
+const {
+  state: voiceState,
+  durationMs: voiceDuration,
+  levels: voiceLevels,
+  errorMsg: voiceError,
+  start: voiceStart,
+  stop: voiceStop,
+  cancel: voiceCancel,
+} = useVoiceInput({
+  mockSamples: [
+    '（语音示例）如何提升我的睡眠质量？',
+    '（语音示例）帮我看看今天的运动达标了吗？',
+    '（语音示例）最近压力有点大，有什么调节建议？',
+  ],
+})
+
+function onMicOrSend() {
+  if (input.value.trim()) {
+    onSend()
+    return
+  }
+  if (chat.sending) return
+  voiceStart()
+}
+
+async function onVoiceStop() {
+  const text = await voiceStop()
+  if (text) input.value = input.value ? `${input.value} ${text}` : text
 }
 </script>
 
@@ -50,7 +113,7 @@ function onEnter(e: KeyboardEvent) {
             v-for="s in suggestions"
             :key="s"
             class="suggest-pill"
-            :disabled="chat.sending"
+            :disabled="suggestDisabled(s)"
             @click="send(s)"
           >
             {{ s }}
@@ -59,8 +122,10 @@ function onEnter(e: KeyboardEvent) {
       </div>
     </div>
 
-    <!-- 输入框（含底部工具条）-->
-    <div class="input-box">
+    <ReportTaskBanner />
+
+    <!-- 输入框（含底部工具条）/ 录音条 -->
+    <div v-if="voiceState === 'idle'" class="input-box">
       <textarea
         v-model="input"
         class="input-area"
@@ -85,19 +150,30 @@ function onEnter(e: KeyboardEvent) {
         <button
           class="voice-btn"
           :class="{ active: input.trim() }"
-          :title="input.trim() ? '发送' : '语音（占位）'"
-          @click="onSend"
+          :title="input.trim() ? '发送' : '语音输入'"
+          :disabled="chat.sending"
+          @click="onMicOrSend"
         >
-          <img :src="iconVoice" class="voice-img" alt="" />
+          <img v-if="input.trim()" :src="iconSend" class="voice-img send-mode" alt="" />
+          <img v-else :src="iconVoice" class="voice-img" alt="" />
         </button>
       </div>
     </div>
+    <RecordingBar
+      v-else
+      :state="voiceState"
+      :duration-ms="voiceDuration"
+      :levels="voiceLevels"
+      :error-msg="voiceError"
+      @stop="onVoiceStop"
+      @cancel="voiceCancel"
+    />
 
     <!-- 机器人回复（输入框下方，覆盖式单条）-->
     <transition name="fade">
       <div v-if="chat.sending || chat.lastReply" class="reply-bar">
         <span class="reply-tag">AI</span>
-        <span v-if="chat.sending" class="reply-text thinking">正在思考…</span>
+        <span v-if="chat.sending" class="reply-text thinking">正在理解你的需求…</span>
         <span v-else class="reply-text" :class="{ blocked: chat.lastIntent === 'blocked' }">{{ chat.lastReply }}</span>
       </div>
     </transition>
@@ -228,13 +304,21 @@ function onEnter(e: KeyboardEvent) {
   cursor: pointer;
   transition: background 0.15s;
 }
+.voice-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .voice-btn.active {
-  background: var(--c-primary-soft);
+  background: var(--c-primary);
 }
 .voice-img {
   width: 20px;
   height: 20px;
   object-fit: contain;
+}
+.voice-img.send-mode {
+  width: 18px;
+  height: 18px;
 }
 
 /* 回复 */

@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { getSleep, postSleepEntry, type SleepRangeOpt } from '@/api/sleep'
 import type { SleepPage, SleepEntryPayload, SourceMap } from '@/api/types'
 import type { HttpError } from '@/api/http'
-
-export const USER_ID = 1
+import { useUserStore } from '@/stores/user'
 
 export const useSleepStore = defineStore('sleep', {
   state: () => ({
@@ -26,12 +25,15 @@ export const useSleepStore = defineStore('sleep', {
   },
 
   actions: {
-    async load(range?: SleepRangeOpt, userId: number = USER_ID) {
+    async load(range?: SleepRangeOpt, userId?: number) {
+      const uid = userId ?? useUserStore().userId
       if (range) this.range = range
       this.loading = true
       this.error = ''
+      this.data = null
+      this.sources = {}
       try {
-        const r = await getSleep(userId, this.range)
+        const r = await getSleep(uid, this.range)
         this.data = r.sleep
         this.sources = r.sources || {}
       } catch (e) {
@@ -42,11 +44,12 @@ export const useSleepStore = defineStore('sleep', {
     },
 
     /** 录入睡眠时间，成功后回刷本页 */
-    async saveEntry(payload: SleepEntryPayload, userId: number = USER_ID): Promise<boolean> {
+    async saveEntry(payload: SleepEntryPayload, userId?: number): Promise<boolean> {
+      const uid = userId ?? useUserStore().userId
       this.saving = true
       try {
-        const r = await postSleepEntry({ ...payload, user_id: payload.user_id ?? userId })
-        if (r.saved) await this.load(undefined, userId)
+        const r = await postSleepEntry({ ...payload, user_id: payload.user_id ?? uid })
+        if (r.saved) await this.load(undefined, uid)
         return !!r.saved
       } catch (e) {
         this.error = (e as HttpError)?.message || '保存失败'
