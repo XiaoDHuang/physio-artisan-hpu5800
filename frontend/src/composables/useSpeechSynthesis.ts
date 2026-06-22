@@ -15,7 +15,6 @@ export function useSpeechSynthesis() {
   const errorMsg = ref<string | null>(null)
 
   let audio: HTMLAudioElement | null = null
-  let utterance: SpeechSynthesisUtterance | null = null
   let abortController: AbortController | null = null
   let voicesWarmed = false
 
@@ -56,14 +55,12 @@ export function useSpeechSynthesis() {
         if (errorMsg.value === '浏览器语音播放异常') errorMsg.value = null
       }, 2500)
     }
-    utterance = u
     speechSynthesis.speak(u)
   }
 
   function stopBrowser() {
     speechSynthesis.cancel()
     isSpeaking.value = false
-    utterance = null
   }
 
   // ==================== Layer 2: 大模型 TTS ====================
